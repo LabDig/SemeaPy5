@@ -17,6 +17,13 @@ import Adafruit_BBIO.UART as UART
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 from  time import time
+
+
+
+pinOnOffButton="P9_12"
+'''
+GPIO.setup(pinOnOffButton, GPIO.IN) 
+
 #GPS
 GPS = serial.Serial ("/dev/ttyO4", 9600) # P9_11 P9_13
 # pin
@@ -43,16 +50,72 @@ duty_span = duty_max - duty_min
 #Encoder Motor
 #GPIO.setup(pinEncMotor, GPIO.IN) 
 
+'''
+
 # software start
-class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
+class Semea(QtWidgets.QTabWidget,Ui_TabWidget):
     def __init__(self,parent=None):
-        super(Seeder,self).__init__(parent)
+        super(Semea,self).__init__(parent)
         self.setupUi(self)
-        self.timer = QtCore.QTimer() # função timer
-        self.timer_encoder = QtCore.QTimer() # função timer
-        # Função que define timer ciclico
-        self.timer.timeout.connect(self.Update)
-        self.timer_encoder.timeout.connect(self.Encoder)
+
+        #tab changes
+        self.bt_to_conf.clicked.connect(lambda:self.setCurrentIndex(1))
+        self.bt_back_main.clicked.connect(lambda:self.setCurrentIndex(0))
+        self.bt_to_aux.clicked.connect(lambda:self.setCurrentIndex(2))
+        self.bt_back_conf.clicked.connect(lambda:self.setCurrentIndex(1))
+        
+
+        #timers
+        self.control_timer = QtCore.QTimer()
+        self.monitoring_timer = QtCore.QTimer()
+        self.encoder_timer = QtCore.QTimer()
+
+        self.control_timer.timeout.connect(self.ControlFunction)
+        self.monitoring_timer.timeout.connect(self.MonitoringFunction)
+        self.encoder_timer.timeout.connect(self.EncoderFunction)
+
+        #OnOff Button Start Stop Control, Monitoring and Encoder
+        pinOnOffButton="ON"
+        if pinOnOffButton=="ON": #GPIO.input(pinOnOffButton):
+            self.control_timer.start(500)
+            self.monitoring_timer.start(3000)
+            self.encoder_timer.start(10)
+
+        else:
+            self.control_timer.stop()
+            self.monitoring_timer.stop()
+            self.encoder_timer.stop()
+
+            self.ql_speed.setPlainText("")
+            self.ql_pdop.setPlainText("")
+            self.ql_pol.setPlainText("")
+            self.ql_n.setPlainText("")
+            self.ql_p.setPlainText("")
+            self.ql_k.setPlainText("")
+            self.ql_area.setPlainText("")
+            self.ql_opcap.setPlainText("")
+
+
+    def ControlFunction(self):
+        # Update Line Edit in MAIN TAB
+        self.ql_speed.setPlainText("0.0")
+        self.ql_pdop.setPlainText("0.0")
+        self.ql_pol.setPlainText("0.0")
+        self.ql_n.setPlainText("0.0")
+        self.ql_p.setPlainText("0.0")
+        self.ql_k.setPlainText("0.0")
+        self.ql_area.setPlainText("0.0")
+        self.ql_opcap.setPlainText("0.0")
+        
+
+    def MonitoringFunction(self):
+        pass
+
+    def EncoderFunction(self):
+        pass
+
+        '''
+
         self.timer.start(1000)
         self.timer_encoder.start(5)
         self.has_map=False
@@ -91,11 +154,10 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
         GPIO.output(pinRel3,GPIO.HIGH)
         GPIO.output(pinRel4,GPIO.HIGH)
         GPIO.cleanup() # clean all GPIO ports
-        '''
+        
         PWM.set_duty_cycle(servo_pin, 0.0)
         PWM.stop(servo_pin)
         PWM.cleanup()
-        '''
         self.close()
 
     def CarregaMapa(self):
@@ -127,7 +189,7 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
 
     def Encoder(self):
         #ler encoder roda
-        '''
+        
         if GPIO.input(pinEncRoda):p_atual_roda=1
         else: p_atual_roda=0
         if self.count_roda==0: self.t1_r=time()
@@ -149,7 +211,7 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
             self.count_disco=0
             self.vel_disco=1*60/(time()-self.t1_d) 
         self.p_ant_disco=p_atual_disco
-        '''
+        
         
     def Update(self):  #Funcção de atualização continua
         #self.LerGPS()
@@ -228,14 +290,14 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
             pass
         #atualiza aba status
         self.pdop.setPlainText(str(self.pdop_gps))
-        
+'''        
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():
         app = QtWidgets.QApplication(sys.argv)
     else:
         app = QtWidgets.QApplication.instance()
-    ex = Seeder()
+    ex = Semea()
     ex.show()
     sys.exit(app.exec_())
 
