@@ -11,7 +11,7 @@ from time import time
 
 # import python files
 from seeder_ui import Ui_TabWidget
-import seeder
+import operation
 import serial
 import Adafruit_BBIO.UART as UART
 import Adafruit_BBIO.GPIO as GPIO
@@ -163,7 +163,7 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
                 self.vel_sensor.setPlainText(str(round(self.vel_roda,2)))
                 # procura ponto no mapa com posicao mais proxima da atual
                 # retorna a populacao e o espacamento
-                populacao,espacamento,xx,yy=seeder.FindNeig(self.x,self.y,self.populacao,self.espacamento,self.lat,self.long)
+                populacao,espacamento,xx,yy=operation.FindNeig(self.x,self.y,self.populacao,self.espacamento,self.lat,self.long)
                 # add ponto atual e ponto vizinho proximo
                 self.scene.addRect(xx,yy,0.5,0.5,self.Gpen,self.Gbrush)
                 self.scene.addRect(self.lat,self.long,0.5,0.5,self.Bpen,self.Bbrush)
@@ -189,7 +189,7 @@ class Seeder(QtWidgets.QTabWidget,Ui_TabWidget):
                 self.st_semeadora.setPlainText("In operation")
                 populacao=float(self.pol.currentText())
                 espacamento=float(self.espac.currentText())
-                rotacao,sementes=seeder.Seeder(self.vel_roda,populacao,espacamento,self.furos,self.germinacao)
+                rotacao,sementes=operation.Seeder(self.vel_roda,populacao,espacamento,self.furos,self.germinacao)
                 self.line_rot.setPlainText("C: "+str(round(rotacao,2))+"  R: "+str(round(self.vel_disco,2)))
                 self.line_plantas.setPlainText(str(round(sementes,2)))
                 #ajuste fino da velocidade
