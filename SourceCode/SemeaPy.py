@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 #!/usr/bin/python3
 import os
 import sys
@@ -8,111 +9,154 @@ from PyQt5 import QtGui,QtCore
 import math
 import utm
 from time import time
-
-# import python files
-from seeder_ui import Ui_TabWidget
-import operation
 import serial
 import Adafruit_BBIO.UART as UART
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
+import Adafruit_BBIO.ADC as ADC
 from  time import time
 
+# import python files
+from seeder_ui import Ui_SEMEA
+import operation
 
-
-pinOnOffButton="P9_12"
 '''
+#OnOff
+pinOnOffButton="P9_12"
 GPIO.setup(pinOnOffButton, GPIO.IN) 
-
 #GPS
 GPS = serial.Serial ("/dev/ttyO4", 9600) # P9_11 P9_13
-# pin
-pinRel3="P8_9" #cinza
-pinRel4="P8_10" #marrom
-pinBotao="P8_16" # marrom
-pinEncMotor="P8_13" #verde
-pinEncRoda="P8_14" #vermelho
-servo_pin="P8_19" # amarelo
-#reles
-GPIO.setup(pinRel3, GPIO.OUT) 
-GPIO.output(pinRel3,GPIO.HIGH)
-GPIO.setup(pinRel4, GPIO.OUT) # rele 04
-GPIO.output(pinRel4,GPIO.HIGH)
-# saida PWM
-duty_min = 3.4
-duty_max = 13.0 
-duty_span = duty_max - duty_min
-#PWM.start(servo_pin, duty_min, 50.0)
-#Botao habilita semeadora
-#GPIO.setup(pinBotao, GPIO.IN) 
-#Encoder Roda
-#GPIO.setup(pinEncRoda, GPIO.IN)  
-#Encoder Motor
-#GPIO.setup(pinEncMotor, GPIO.IN) 
-
+#PWM Semente
+pinPWM_Seed="P8_8"
+PWM.start(pinPWM_Seed,0, 500.0) #pin, duty,frequencia
+pinEnable_Seed="P8_8"
+GPIO.setup(pinEnable_Seed, GPIO.OUT)
+GPIO.output(pinEnable_Seed,GPIO.LOW)
+#PWM Fertilizante
+pinPWM_Fert="P8_8"
+PWM.start(pinPWM_Fert,0, 500.0) #pin, duty,frequencia
+pinEnable_Fert="P8_8"
+GPIO.setup(pinEnable_Fert, GPIO.OUT)
+GPIO.output(pinEnable_Fert,GPIO.LOW)
+#Encoder Velocidade Deslocamento
+pinEncA_Roda="P8_8"
+pinEncB_Roda="P8_8"
+GPIO.setup(pinEncA_Roda, GPIO.IN)
+GPIO.setup(pinEncB_Roda, GPIO.IN)
+#Encoder Dosador Semente
+pinEncA_Seed="P8_8"
+pinEncB_Seed="P8_8"
+GPIO.setup(pinEncA_Seed, GPIO.IN)
+GPIO.setup(pinEncB_Seed, GPIO.IN) 
+#Celula de Carga
+ADC.setup()
+pinLoadCell="P9_33"
 '''
 
 # software start
-class Semea(QtWidgets.QTabWidget,Ui_TabWidget):
+class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
+
+
+        #global variables
+        self.speed=0.0
+        self.pdop=0.0
+        self.popseed=0.0
+        self.fert_rt=0.0
+        self.fert_wgt=0.0
+        self.area=0.0
+        self.opcap=0.0
+        self.st_button=False
+        self.st_seed="OFF"
+        self.st_fert="OFF"
 
         #tab changes
         self.bt_to_conf.clicked.connect(lambda:self.setCurrentIndex(1))
         self.bt_back_main.clicked.connect(lambda:self.setCurrentIndex(0))
         self.bt_to_aux.clicked.connect(lambda:self.setCurrentIndex(2))
         self.bt_back_conf.clicked.connect(lambda:self.setCurrentIndex(1))
-        
 
+        #exit button
+        self.exit.clicked.connect(self.Close)
         #timers
         self.control_timer = QtCore.QTimer()
-        self.monitoring_timer = QtCore.QTimer()
+        self.log_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
 
         self.control_timer.timeout.connect(self.ControlFunction)
-        self.monitoring_timer.timeout.connect(self.MonitoringFunction)
+        self.log_timer.timeout.connect(self.MonitoringFunction)
         self.encoder_timer.timeout.connect(self.EncoderFunction)
 
-        #OnOff Button Start Stop Control, Monitoring and Encoder
-        pinOnOffButton="ON"
-        if pinOnOffButton=="ON": #GPIO.input(pinOnOffButton):
-            self.control_timer.start(500)
-            self.monitoring_timer.start(3000)
+        #start timer for control
+        self.control_timer.start(1000)
+
+ 
+    def Close(self):
+        # add warning for confirm close software
+        self.control_timer.stop()
+        self.log_timer.stop()
+        self.encoder_timer.stop()
+        GPIO.cleanup()
+        self.close()
+        
+    def ControlFunction(self):
+
+        # Read GPS
+
+        # Read Button OnOff
+
+        # Read Seeder Mode
+
+        # Read Fertilizer Mode
+
+        # Read Speed of Seeder
+
+        
+        if self.st_button is True and (self.st_seed is not "OFF" or self.st_fert is not "OFF") and self.st_pdop <3.0: #conditions to start control of seed and fertilizer distribuition
+            self.log_timer.start(3000)
             self.encoder_timer.start(10)
+            print ("Condicoes para controle distribuidores")
+
+            if self.st_seed is "MAP":
+                print ("Semente via mapa")
+
+            if self.st_seed is "FIX":
+                print ("Semente via valor fixo")
+
+            if self.st_fert is "MAP":
+                print ("Fertilizante via mapa")
+
+            if self.st_seed is "MAP":
+                print ("Fertilizante via valor")
 
         else:
-            self.control_timer.stop()
-            self.monitoring_timer.stop()
-            self.encoder_timer.stop()
+            print ("Distribuidores desligados")
+            self.speed=0.0
+            self.pdop=0.0
+            self.popseed=0.0
+            self.fert_rt=0.0
+            self.fert_wgt=0.0
+            self.area=0.0
+            self.opcap=0.0
 
-            self.ql_speed.setPlainText("")
-            self.ql_pdop.setPlainText("")
-            self.ql_pol.setPlainText("")
-            self.ql_n.setPlainText("")
-            self.ql_p.setPlainText("")
-            self.ql_k.setPlainText("")
-            self.ql_area.setPlainText("")
-            self.ql_opcap.setPlainText("")
-
-
-    def ControlFunction(self):
-        # Update Line Edit in MAIN TAB
-        self.ql_speed.setPlainText("0.0")
-        self.ql_pdop.setPlainText("0.0")
-        self.ql_pol.setPlainText("0.0")
-        self.ql_n.setPlainText("0.0")
-        self.ql_p.setPlainText("0.0")
-        self.ql_k.setPlainText("0.0")
-        self.ql_area.setPlainText("0.0")
-        self.ql_opcap.setPlainText("0.0")
+        # Update LineEdit in main tab
+        self.ql_speed.setPlainText(str(self.speed))
+        self.ql_pdop.setPlainText(str(self.pdop))
+        self.ql_seed.setPlainText(str(self.popseed))
+        self.ql_fert_rt.setPlainText(str(self.fert_rt))
+        self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
+        self.ql_area.setPlainText(str(self.area))
+        self.ql_opcap.setPlainText(str(self.opcap))
         
 
     def MonitoringFunction(self):
-        pass
+        print ("Salvando Log File")
+        
 
     def EncoderFunction(self):
-        pass
+        print ("Ler Encoder")
 
         '''
 
@@ -291,6 +335,7 @@ class Semea(QtWidgets.QTabWidget,Ui_TabWidget):
         #atualiza aba status
         self.pdop.setPlainText(str(self.pdop_gps))
 '''        
+
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():
