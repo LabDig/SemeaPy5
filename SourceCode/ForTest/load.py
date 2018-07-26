@@ -10,18 +10,18 @@ import numpy as np
 from sklearn import linear_model # pip install sklearn  apt-get install python3-scipy
 
 #Calibration
-massa = np.array([ 700, 4200, 8100, 15900 ])
-voltage = np.array([ 0.07,0.26,0.54,0.59])
+massa = np.array([ 0,3000,4200,6900,8600,10800,13100,11200,8900,7200,5000,2300,0 ])
+voltage = np.array([ 0.08,0.23,0.29,0.46,0.55,0.73,0.86,0.75,0.60,0.47,0.34,0.18,0.08])
 
 voltage=voltage.reshape(1,-1)
 model = linear_model.LinearRegression()
 model.fit(voltage.T, massa)
 
 
-max_samples = 50 # window for movel average filter
+max_samples = 50  # window for movel average filter
 
 value_array=np.array(ADC.read("P9_33")) #first value
-file="res.txt"
+file="re2s.txt"
 res=open(file,"a")
 res.write("Cabecalho")
 res.write("\n")
@@ -40,7 +40,7 @@ while True:
 
 
     massa=avg_value*model.coef_[0] + model.intercept_ #massa (g) =x (v) * a +b
-    print (time.time()-ti,value,avg_value,massa)
+    print (massa-450)
     res=open(file,"a")
     res.write(str(time.time()-ti))
     res.write(",")
@@ -49,4 +49,4 @@ while True:
     res.write(str(avg_value))
     res.write("\n")
     res.close()
-    time.sleep(0.5)
+    time.sleep(0.05)
