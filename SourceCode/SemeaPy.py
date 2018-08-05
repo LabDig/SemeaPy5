@@ -148,6 +148,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             if self.cb_motion_simulate.isChecked(): 
                 self.speed=float(self.sl_sim_speed.value())/50.0 
                 self.ql_sim_speed.setPlainText(str(self.speed))
+
             ###Seeder Distributor###
             if self.list_seed.currentText()=="FIX": #Fix seed distribuition rate
                 self.seed_mode="FIX"
@@ -283,8 +284,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         GPIO.cleanup() #clear pin configuration
         PWM.cleanup()
         self.close() #close software
-
-
 
 #Run the app:
 if __name__ == '__main__':

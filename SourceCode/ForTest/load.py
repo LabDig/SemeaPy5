@@ -19,7 +19,6 @@ model.fit(voltage.T, massa)
 
 
 max_samples = 50  # window for movel average filter
-
 value_array=np.array(ADC.read("P9_33")) #first value
 file="re2s.txt"
 res=open(file,"a")
