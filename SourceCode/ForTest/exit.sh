@@ -1,5 +1,5 @@
 #!/bin/bash
 
-echo 2 >/sys/class/gpio/unexport
+echo 49 > /sys/class/gpio/unexport
 
 

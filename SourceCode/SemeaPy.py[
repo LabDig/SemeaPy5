@@ -67,16 +67,16 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
+
         #global variables
         self.speed,self.spd_seed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-        self.last_st_seed,self.aux_i_seed,self.time_start_seed,self.aux_j_seed,self.real_rot_seed,self.last_st_mach, self.aux_i_mach=-1,0,0,0,-1,0,0
-        self.time_start_mach,self.aux_j_mach,self.fertbym,self.seedbym,self.lat,self.long,self.pdop,self.status=0,0,0,0,0,0,0,0
-        self.row_spacing,self.disk_hole,self.seed_germ,self.st_has_logfile,self.logfile_name,self.aux_logger=0,0,0,False,"",0
-        self.lat_map_fert,self.long_map_fert,self.map_fert,self.lat_atual,self.long_atual=[],[],[],0,0
-        self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[]
-        self.seed_mode,self.fert_mode="OFF","OFF"
-        self.rot_seed,self.rot_fert=0.0,0.0
-   
+	self.last_st_seed,self.aux_i_seed,self.time_start_seed,self.aux_j_seed,self.real_rot_seed,self.last_st_mach, self.aux_i_mach=-1,0,0,0,-1,0,0
+	self.time_start_mach,self.aux_j_mach,self.fertbym,self.seedbym,self.lat,self.long,self.pdop,self.status=0,0,0,0,0,0,0,0
+	self.row_spacing,self.disk_hole,self.seed_germ,self.st_has_logfile,self.logfile_name,self.aux_logger=0,0,0,False,"",0
+	self.lat_map_fert,self.long_map_fert,self.map_fert,self.lat_atual,self.long_atual=[],[],[],0,0
+	self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[]
+	self.seed_mode,self.fert_mode="OFF","OFF"
+	self.rot_seed,self.rot_fert=0.0,0.0
         #exit button
         self.exit.clicked.connect(self.Close)
         

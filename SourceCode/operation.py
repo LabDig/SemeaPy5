@@ -4,6 +4,10 @@ import time
 from sklearn import linear_model # pip install sklearn  apt-get install python3-scipy
 import numpy as np
 
+atual_st_seed,last_st_seed,aux_i_seed,aux_j_seed=-1,-1,0,0
+atual_st_wheel,last_st_wheel,aux_i_wheel,aux_j_wheel=-1,-1,0,0
+real_rot_seed,real_rot_wheel=0,0
+
 def Fert(v,rate,spacing):
     fertbym=rate*spacing/10000.0
     factor=0.026  #kg of fertilizer in one revolution of screw
@@ -36,7 +40,7 @@ def ReadMapFile(data):
             z.append(float(Row[2]))
     return x,y,z
 
-def GPSRead(nmea):
+def ReadGPS(nmea):
     try:
         nmea=nmea.decode("utf-8")
         nmea_array=nmea.split(',')
@@ -63,24 +67,56 @@ def GPSRead(nmea):
         pass
     return lat,long,pdop,status
 
-def Speed_Seed(atual_st_seed):
-       
+def SeedSpeed():
+        global atual_st_seed,last_st_seed,aux_i_seed,aux_j_seed,real_rot_seed
+        
+        file=open("/sys/class/gpio/gpio68/value","r")
+        if file.read()=="1\n":
+            atual_st_seed=1
+        else:
+            atual_st_seed=0
+        file.close()
+
         if (last_st_seed==0 and atual_st_seed==1): #if have up border
             aux_i_seed=saux_i_seed+1
         if (aux_i_seed==1): #if one up border is detectec start the time
              time_start_seed=time.time()
         if (aux_i_seed==3): #at complete three up border, calculate the velocity (one revolution is 15 up border)
-            real_rot=60*.2/(time.time()-ts)
+            real_rot_seed=60*.2/(time.time()-time_start_seed)
             aux_i_seed=0
         if (last_st_seed==atual_st_seed): #for dectect if encoder its stop, 
             aux_j_seed=aux_j_seed+1
         if (aux_j_seed>100): #if encoder is stop much time, v=0
             aux_j_seed=0
-            real_rot=0
+            real_rot_seed=0
         last_st_seed=atual_st_seed #update last status
-        return real_rot
+        return real_rot_seed
 
-def ReadWeight(value):
+def WheelSpeed():
+        global atual_st_wheel,last_st_wheel,aux_i_wheel,aux_j_wheel,real_rot_wheel
+        file=open("/sys/class/gpio/gpio66/value","r")
+        if file.read()=="1\n":
+            atual_st_wheel==1
+        else:
+            atual_st_wheel=0
+        file.close()
+
+        if (last_st_wheel==0 and atual_st_wheel==1): #if have up border
+            aux_i_wheel=saux_i_wheel+1
+        if (aux_i_wheel==1): #if one up border is detectec start the time
+             time_start_wheel=time.time()
+        if (aux_i_wheel==3): #at complete three up border, calculate the velocity (one revolution is 15 up border)
+            real_rot_wheel=60*.2/(time.time()-time_start_wheel)
+            aux_i_wheel=0
+        if (last_st_wheel==atual_st_wheel): #for dectect if encoder its stop, 
+            aux_j_wheel=aux_j_wheel+1
+        if (aux_j_wheel>100): #if encoder is stop much time, v=0
+            aux_j_wheel=0
+            real_rot_wheel=0
+        last_st_wheel=atual_st_wheel #update last status
+        return real_rot_wheel
+
+def ReadWeight():
     
     #Calibration
     massa = np.array([ 0,3000,4200,6900,8600,10800,13100,11200,8900,7200,5000,2300,0 ])
@@ -92,8 +128,10 @@ def ReadWeight(value):
     value_array=[]
 
     ti=time.time()
-    value=ADC.read("P9_33")
-
+    file=open("/sys/bus/iio/devices/iio:device0/in_voltage4_raw","r") #AIN4 P9.33
+    value=int(file.readline())
+    file.close()
+    
     value_array = np.append(value_array, value)
 
     avg_value = np.mean(value_array)

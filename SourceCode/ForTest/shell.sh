@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo 2 >/sys/class/gpio/export
-echo in >  /sys/class/gpio/gpio2/direction
+echo 49 > /sys/class/gpio/export
+echo in > /sys/class/gpio/gpio49/direction
 
-#P8_7
+#P9_23 (1_17 =49)

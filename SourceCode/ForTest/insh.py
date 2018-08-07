@@ -1,8 +1,12 @@
 import os
 os.system("sh shell.sh")
-a=open("/sys/class/gpio/gpio2/value","r")
 while True:
-        if a.read()=="1\n":
-                print ("on")
-
+	a=open("/sys/class/gpio/gpio49/value","r")
+	st=a.read()
+	print (st)	
+	if (st=="1\n"):
+		print("on")
+	else:
+		print ("off")
+	a.close()
 os.system("sh exit.sh")
