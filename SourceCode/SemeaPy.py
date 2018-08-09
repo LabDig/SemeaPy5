@@ -14,7 +14,7 @@ import serial
 # import python files
 from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
-import gpio #read gpio
+import gpio #enable and read gpio
 
 '''
 #Because conflict between Debian 8.6, 4D 7" LCD-CAPE, Adafruit and Python 3.6
@@ -24,7 +24,7 @@ import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
 #OnOff
-pinOnOffButton="P9_23"
+pinOnOffButton="P8_15"
 GPIO.setup(pinOnOffButton, GPIO.IN) 
 #PWM Seed
 rotmax_seed=60 #maximum rotation of motor (in RPM)
@@ -54,19 +54,34 @@ GPIO.setup(pinEncB_Seed, GPIO.IN)
 ADC.setup()
 pinLoadCell="P9_33"
 '''
+gps="BB-UART4"
+ibt2="BB-PWM2"
+pinOnOffButton=47 #P8_15
+pinPWM_Fert=0 #pwm0 in pwmchip2 P8_19
+pinPWM_Seed=1 #pwm0 in pwmchip2 P8_13
+pinEncA_Wheel=66 #"P8_7"
+pinEncB_Wheel=69 #"P8_9"
+pinEncA_Seed=67 #"P8_8"
+pinEncB_Seed=68 #"P8_10"
+pinEnable_Seed=44 #"P8_12"
+pinEnable_Fert=45 #"P8_11"
 
-os.system("sh start.sh") #Bash Script to Start IN, OUT, PWM and UART Ports
+#Config and Start GPIO's
+os.system("sh start.sh")
 #GPS
 ser = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
+#PWM
 T=1000000 #Period for PWM Signal in ns (Frequency 1 khz)
 max_rot_seed=80
 max_rot_fert=120
+
 
 # software start
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
+        
         #global variables
         self.speed,self.spd_seed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
         self.last_st_seed,self.aux_i_seed,self.time_start_seed,self.aux_j_seed,self.real_rot_seed,self.last_st_mach, self.aux_i_mach=-1,0,0,0,-1,0,0
@@ -141,12 +156,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
 
     def ControlFunction(self):  #Main Loop of Software
-        if gpio.Button() is True: #If button is on
+        if gpio.Button(pinOnOffButton) is True: #If button is on
             self.encoder_timer.start(50) # Start Encoder Function
             self.seed_germ=int(self.sl_germ.value())             # Read Germination
             self.ql_germ.setPlainText(str(self.seed_germ))
             self.disk_hole=int(self.list_holes.currentText())             #Read Hole Disk
-            #self.lat,sel.long,self.pdop,self.status=operation.ReadGPS(ser.readline())   #Read GPS (if MODE=FIX, only for log)
+            self.lat,self.long,self.pdop,self.status=operation.ReadGPS(ser.readline())   #Read GPS (if MODE=FIX, only for log)
             self.row_spacing=float(self.sl_row_spacing.value())/100.0             #Read Spacing
             self.ql_row_spacing.setPlainText(str(self.row_spacing))
             self.fert_wgt=operation.ReadWeight             #Read Fert Weight
@@ -160,12 +175,14 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 self.seed_mode="FIX"
                 self.popseed=int(self.sl_popseed.value())*5000 
                 self.ql_set_pop.setPlainText(str(self.popseed))
-                if self.pdop<5: #plot in graph if have gps signal
+                if self.pdop<5.0: #plot in graph if have gps signal
                     self.scene.addRect(self.lat_atual,self.long_atual,0.5,0.5,self.Gpen,self.Gbrush)
                     self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
                 else: self.lat_atual,self.long_atual=-999,-999
                 #calculate angular velocity of dc motor (in RPM)
                 self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
+                print ("For seed:: ",self.rot_seed,self.seedbym)
+
             if self.list_seed.currentText()=="MAP": #Map for seed distribuition rate
                 self.seed_mode="MAP"
                 if len(self.lat_map_seed) >0: # if user loaded the map
@@ -232,19 +249,22 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 
 
             #calculate operational capability and area
+            '''
             self.area=self.area+(self.row_spacing*self.speed*1/10000) #in ha
             self.area=float(("{0:.4f}").format(self.area))
             self.time_operation=self.time_operation+(1/60)   # im minutes
             self.time_operation=float(("{0:.4f}").format(self.time_operation))
             self.opcap=self.area/(self.time_operation/60) # in ha/h
             self.opcap=float(("{0:.4f}").format(self.opcap))
-
+            
             #Logger
             if self.speed>0.1: # save datas if machine is operation
                 self.aux_logger=self.aux_logger+1
                 if self.aux_logger==5: #save datas each 5 loops
                     self.LoggerFunction()
                     self.aux_logger=0
+            '''
+            
              
         else: # If button is off
             gpio.EnableSeed("LOW")
@@ -285,7 +305,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.speed=operation.WheelSpeed()
  
     def Close(self):
-        os.system("sh stop.sh") #Bash Script to Stop IN, OUT, PWM and UART Ports
+        os.system("sh stop.sh")
         self.control_timer.stop()
         self.encoder_timer.stop()
         self.close() #close software

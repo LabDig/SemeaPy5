@@ -7,6 +7,7 @@ import numpy as np
 atual_st_seed,last_st_seed,aux_i_seed,aux_j_seed=-1,-1,0,0
 atual_st_wheel,last_st_wheel,aux_i_wheel,aux_j_wheel=-1,-1,0,0
 real_rot_seed,real_rot_wheel=0,0
+lat, long,pdop,status=0,0,0,0
 
 def Fert(v,rate,spacing):
     fertbym=rate*spacing/10000.0
@@ -41,6 +42,7 @@ def ReadMapFile(data):
     return x,y,z
 
 def ReadGPS(nmea):
+    global lat, long,pdop,status
     try:
         nmea=nmea.decode("utf-8")
         nmea_array=nmea.split(',')
@@ -57,10 +59,10 @@ def ReadGPS(nmea):
                 if lonHem=='W': lon=-lon
                 if latHem=='S': lat=-lat
                 utm_conv=utm.from_latlon(lat,lon)
-                lat_atual=utm_conv[0]
-                long_atual=utm_conv[1]
+                lat_atual=float(utm_conv[0])
+                long_atual=float(utm_conv[1])
         if nmea_array[0]=='$GPGSA'and status=='A' and size==18:
-            pdop=nmea_array[-3] # pdop
+            pdop=float(nmea_array[-3]) # pdop
         if status=='V':
             pdop=999.99
     except:
