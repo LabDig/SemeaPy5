@@ -7,6 +7,8 @@
 
 echo BB-UART4 > /sys/devices/platform/bone_capemgr/slots
 echo BB-PWM2 > /sys/devices/platform/bone_capemgr/slots
+config-pin P9.11 uart
+config-pin P9.13 uart
 echo 47 > /sys/class/gpio/export
 echo in > /sys/class/gpio/gpio49/direction
 echo 66 > /sys/class/gpio/export

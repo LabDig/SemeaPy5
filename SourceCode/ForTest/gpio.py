@@ -1,4 +1,5 @@
 import os
+T=1000000 #Period for PWM Signal in ns (Frequency 1 khz)
 
 def StartGPS(gps):
         try:
@@ -62,7 +63,6 @@ def Button(pin):
                 return st_button
 
 def EnableSeed(st):
-    print ("Enable Seed")
     if st=="HIGH":
         try:
                 file=open("/sys/class/gpio/gpio44/value","w")
@@ -79,16 +79,14 @@ def EnableSeed(st):
         except:
                 print ("Erro in EnableSeed")
 
-def PWMSeed(rot,T,max_rot_seed):
-        dt=rot/max_rot_seed
+def PWMSeed(dt):
         try:
                 file=open("/sys/class/pwm/pwmchip2/pwm1/duty_cycle","w")
                 file.write(str(int(dt*T)))
                 file.close()
         except:
                 print ("Erro in PWM Seed")
-        print ("PWM Seed")
-
+'''
 def EnableFert(st):
         
         if st=="HIGH":
@@ -114,6 +112,7 @@ def PWMFert(rot,T,max_rot_fert):
                 file.close()
         except:
                 print ("Erro in PWM Fert")
+'''
 def Stop(pin):
         for i in range(7):
                 try:
