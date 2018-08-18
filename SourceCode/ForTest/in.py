@@ -1,5 +1,5 @@
 import Adafruit_BBIO.GPIO as GPIO
-pinOnOffButton="P8_15"
+pinOnOffButton="P8_16"
 GPIO.setup(pinOnOffButton,GPIO.IN)
 while True:
     if GPIO.input(pinOnOffButton):

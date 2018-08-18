@@ -158,5 +158,5 @@ def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,rot_seed,real_rot_seed):
     PWM.set_duty_cycle(pinPWM_Seed,dt)
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
-    print (seed_cor)
+
     

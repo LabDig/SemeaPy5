@@ -21,7 +21,7 @@ import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
 #OnOff
-pinOnOffButton="P8_15"
+pinOnOffButton="P8_16"
 GPIO.setup(pinOnOffButton, GPIO.IN) 
 #PWM Seed
 rotmax_seed=60 #maximum rotation of motor (in RPM)
@@ -52,7 +52,7 @@ ADC.setup()
 pinLoadCell="P9_33"
 
 #GPS
-os.system("sh start_uart.sh")
+#os.system("sh start_uart.sh")
 ser = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 
 max_rot_seed=80
@@ -166,7 +166,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 
             if self.list_seed.currentText()=="FIX": #Fix seed distribuition rate
                 self.seed_mode="FIX"
-                self.popseed=int(self.sl_popseed.value())*5000 
+                self.popseed=int(self.sl_popseed.value())*1000 
                 self.ql_set_pop.setPlainText(str(self.popseed))
 
                 if self.pdop<3.0 and self.lat_atual!=0: #plot in graph if have gps signal
