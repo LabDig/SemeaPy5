@@ -20,39 +20,32 @@ import operation #calculations
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
+from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
 #OnOff
 pinOnOffButton="P8_16"
 GPIO.setup(pinOnOffButton, GPIO.IN) 
+
 #PWM Seed
 rotmax_seed=60 #maximum rotation of motor (in RPM)
 pinPWM_Seed="P8_19"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
-pinEnable_Seed="P8_12"
+pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
+
 #PWM Fertilizer
 rotmax_fert=80
 pinPWM_Fert="P8_13"
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
-pinEnable_Fert="P8_11"
+pinEnable_Fert="P8_9"
 GPIO.setup(pinEnable_Fert, GPIO.OUT)
 GPIO.output(pinEnable_Fert,GPIO.LOW)
-#Encoder Velocidade Deslocamento
-pinEncA_Wheel="P8_7"
-pinEncB_Wheel="P8_9"
-GPIO.setup(pinEncA_Wheel, GPIO.IN)
-GPIO.setup(pinEncB_Wheel, GPIO.IN)
-#Encoder Dosador Semente
-pinEncA_Seed="P8_8"
-pinEncB_Seed="P8_10"
-GPIO.setup(pinEncA_Seed, GPIO.IN)
-GPIO.setup(pinEncB_Seed, GPIO.IN) 
+
 #Celula de Carga
 ADC.setup()
 pinLoadCell="P9_33"
 
 #GPS
-#os.system("sh start_uart.sh")
 ser = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 
 max_rot_seed=80
@@ -82,7 +75,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.encoder_timer = QtCore.QTimer()
         self.control_timer.timeout.connect(self.ControlFunction)
         self.encoder_timer.timeout.connect(self.EncoderFunction)
-        self.control_timer.start(750)
+        self.control_timer.start(1000)
 
         #button for logfile
         self.bt_define_logfile.clicked.connect(self.DefineLogFile)
@@ -141,7 +134,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         f.close()
 
         self.lat_map_fert,self.long_map_fert,self.pop_map_fert=operation.ReadMapFile(content)
-        for i in range(len(sel.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
+        for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
         self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
 
     def ControlFunction(self):  #Main Loop of Software
@@ -208,7 +201,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 GPIO.output(pinEnable_Seed,GPIO.LOW)
                 PWM.set_duty_cycle(pinPWM_Seed,0)
             
-            ''' 
+            
             ####Fertilizer Distribution###
             if self.list_fert.currentText()=="FIX": #Fix fert distribuition rate
                 self.fert_mode="FIX"
@@ -220,9 +213,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 else: self.lat_atual,self.long_atual=-999,-999
                 #calculate angular velocity of dc motor (in RPM)
                 self.rot_fert,self.fertbym=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
+                operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.rot_fert)
 
-                GPIO.output(pinEnable_Fert,GPIO.HIGH)
-                PWM.set_duty_cycle(pinPWM_Fert,100.0)
   
             if self.list_fert.currentText()=="MAP": #Map for seed distribuition rate
                 self.fert_mode="MAP"
@@ -237,11 +229,14 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                         self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
                         #calculate angular velocity of dc motor (in RPM)
                         self.rot_fert,self.fertbym=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
+
+                        operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.rot_fert)
                 else:
                     self.rot_fert=0.0
                     self.popsfert_rteed=-999
                     self.ql_set_fert.setPlainText("NO MAP OR GPS")
                     GPIO.output(pinEnable_Fert,GPIO.LOW)
+                    PWM.set_duty_cycle(pinPWM_Fert,0)
 
             if self.list_fert.currentText()=="OFF":
                 self.rot_fert=0.0
@@ -249,22 +244,16 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 self.fert_wgt=0.0
                 self.ql_set_fert.setPlainText("OFF")
                 GPIO.output(pinEnable_Fert,GPIO.LOW)
-
- 
-            #gpio.EnableFert("HIGH")
-            #gpio.PWMFert(self.rot_fert,T,max_rot_fert)
-            '''
+                PWM.set_duty_cycle(pinPWM_Fert,0)
 
   
             #calculate operational capability and area
-            '''
             self.area=self.area+(self.row_spacing*self.speed*1/10000) #in ha
             self.area=float(("{0:.4f}").format(self.area))
             self.time_operation=self.time_operation+(1/60)   # im minutes
             self.time_operation=float(("{0:.4f}").format(self.time_operation))
             self.opcap=self.area/(self.time_operation/60) # in ha/h
             self.opcap=float(("{0:.4f}").format(self.opcap))
-            '''
 
             #Logger
             if self.speed>0.1: # save datas if machine is operation
@@ -313,8 +302,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         f.close()
     
     def EncoderFunction(self):
-        self.real_rot_seed=operation.SeedSpeed(pinEncA_Seed)
-        self.speed=operation.WheelSpeed(pinEncA_Wheel)
+        self.real_rot_seed=operation.SeedSpeed()
+        self.speed=operation.WheelSpeed()
  
     def Close(self):
         GPIO.cleanup()

@@ -7,13 +7,24 @@ import numpy as np
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
+from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
 
-atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-1,-1,0,0
-atual_st_wheel,last_st_wheel,aux_i_wheel,aux_j_wheel,time_start_wheel=-1,-1,0,0,0
+
+#Encoder Velocidade Deslocamento
+#use set_freq.py in Python2 to set frequency
+EncRoda=RotaryEncoder(eQEP2)
+EncRoda.enable()
+#Encoder Dosador Semente
+EncSeed=RotaryEncoder(eQEP0)
+EncSeed.enable()
+
+
+atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-99,-99,0,0
+atual_st_wheel,last_st_wheel,time_start_wheel=-99,-99,0
 real_rot_seed,real_rot_wheel=0,0
 lat, long,pdop,status=0,0,0,0
-weight_array,seed_speed_array,wheel_speed_array=[],[],[]
 seed_cor=0
+weight_array=[]
 
 def Fert(v,rate,spacing):
     fertbym=rate*spacing/10000.0
@@ -76,54 +87,36 @@ def ReadGPS(nmea):
 
     return lat,long,pdop,status
 
-def SeedSpeed(pin):
-    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,seed_speed_array
+def SeedSpeed():
+    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed
     
-    if GPIO.input(pin): atual_st_seed=1
-    else: atual_st_seed=0
-
+    atual_st_seed=EncSeed.position
+    
     #if have up border
-    if (last_st_seed==0 and atual_st_seed==1): aux_i_seed=aux_i_seed+1
+    if (last_st_seed==0 and atual_st_seed==-1): aux_i_seed=aux_i_seed+1
     #if one up border is detectec start the time
     if (aux_i_seed==1): time_start_seed=time.time()
     #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
-    if (aux_i_seed==10):
-        seed_speed_array=np.append(seed_speed_array,(30)/(time.time()-time_start_seed))
-        real_rot_seed= np.mean(seed_speed_array)
+    if (aux_i_seed==20):
+        real_rot_seed= (1)/(time.time()-time_start_seed)
         aux_i_seed=0
-    # delete the first value in array
-    if len(seed_speed_array) == 2: seed_speed_array = np.delete(seed_speed_array, 0) 
     last_st_seed=atual_st_seed #update last status
 
     return round(real_rot_seed,1)
 
-def WheelSpeed(pin):
-    global atual_st_wheel,last_st_wheel,aux_i_wheel,aux_j_wheel,real_rot_wheel,time_start_wheel,wheel_speed_array
+def WheelSpeed():
+    global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
 
-    if GPIO.input(pin): atual_st_wheel=1
-    else: atual_st_wheel=0
+    atual_st_wheel=EncRoda.position
+    
+    if (atual_st_wheel==2): time_start_wheel=time.time()
 
-    #if have up border
-    if (last_st_wheel==0 and atual_st_wheel==1): 
-        aux_i_wheel=aux_i_wheel+1
-        aux_j_wheel=0 # if has moviment, reset stop counter
-    #if one up border is detectec start the time
-    if (aux_i_wheel==1): time_start_wheel=time.time()
-
-    #at complete 5 up border, calculate the velocity (one revolution is 20 up border)
-    if (aux_i_wheel==5): 
-        wheel_speed_array=np.append(wheel_speed_array,(0.5)/(time.time()-time_start_wheel))
-        real_rot_wheel= np.mean(wheel_speed_array)
-        aux_i_wheel=0
-    # delete the first value in array
-    if len(wheel_speed_array) == 2: wheel_speed_array = np.delete(wheel_speed_array, 0) 
+    if (atual_st_wheel==60): 
+        real_rot_wheel= (0.5)/(time.time()-time_start_wheel)
+        Encroda.zero()
 
     #for dectect if encoder its stop, 
-    if (last_st_wheel==atual_st_wheel): aux_j_wheel=aux_j_wheel+1
-    if (aux_j_wheel>75): #if encoder is stop much time, v=0
-        aux_j_wheel=0
-        aux_i_wheel=0
-        real_rot_wheel=0
+    if (time.time()-time_start_wheel > 0.5): real_rot_wheel=0
     last_st_wheel=atual_st_wheel #update last status
 
     return round(real_rot_wheel,1)
@@ -159,4 +152,9 @@ def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,rot_seed,real_rot_seed):
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
 
+    
+def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,rot_fert):
+
+    PWM.set_duty_cycle(pinPWM_Fert,60)
+    GPIO.output(pinEnable_Fert,GPIO.HIGH)
     
