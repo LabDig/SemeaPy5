@@ -11,12 +11,9 @@ import math
 import utm
 from time import time
 import serial
-
 # import python files
 from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
-
-
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
@@ -24,39 +21,30 @@ from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == R
 #OnOff
 pinOnOffButton="P8_16"
 GPIO.setup(pinOnOffButton, GPIO.IN) 
-
 #PWM Seed
-rotmax_seed=60 #maximum rotation of motor (in RPM)
-pinPWM_Seed="P8_19"
+pinPWM_Seed="P8_13"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
-
 #PWM Fertilizer
-rotmax_fert=80
-pinPWM_Fert="P8_13"
+pinPWM_Fert="P8_19"
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 pinEnable_Fert="P8_9"
 GPIO.setup(pinEnable_Fert, GPIO.OUT)
 GPIO.output(pinEnable_Fert,GPIO.LOW)
-
 #Celula de Carga
 ADC.setup()
 pinLoadCell="P9_33"
-
 #GPS
-ser = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
-
-max_rot_seed=80
-max_rot_fert=120
-
+gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
+#3G
+sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
 # software start
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
-        
         #global variables
         self.speed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
         self.last_st_seed,self.aux_i_seed,self.time_start_seed,self.aux_j_seed,self.real_rot_seed,self.last_st_mach, self.aux_i_mach=-1,0,0,0,-1,0,0
@@ -66,35 +54,27 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[]
         self.seed_mode,self.fert_mode="OFF","OFF"
         self.rot_seed,self.rot_fert=0.0,0.0
-  
         #exit button
         self.exit.clicked.connect(self.Close)
-        
         #timers
         self.control_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
         self.control_timer.timeout.connect(self.ControlFunction)
         self.encoder_timer.timeout.connect(self.EncoderFunction)
         self.control_timer.start(1000)
-
         #button for logfile
         self.bt_define_logfile.clicked.connect(self.DefineLogFile)
         self.bt_reload_logfile.clicked.connect(self.ReloadLogFile)
-
         #button for map
         self.bt_load_seed.clicked.connect(self.LoadSeedFile)
         self.bt_load_fert.clicked.connect(self.LoadFertFile)
-
         #buton for tare
         self.bt_tare.clicked.connect(lambda: print ("Tare"))
-
         #buton ok cal
         self.bt_ok_cal.clicked.connect(lambda: print ("OK cal"))
         self.lb_cal.setText("Tank + 5kg")
-
         #buton calibrate
         self.bt_calibrate.clicked.connect(lambda: print ("Calibrate"))
-        
         #grapghs view
         self.scene=QtWidgets.QGraphicsScene()
         self.gv.scale(1,-1)
@@ -103,7 +83,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.Bpen,self.Bbrush=QtGui.QPen(QtCore.Qt.blue),QtGui.QBrush(QtCore.Qt.blue)
         self.Gpen,self.Gbrush=QtGui.QPen(QtCore.Qt.green),QtGui.QBrush(QtCore.Qt.green)
         self.Kpen,self.Kbrush=QtGui.QPen(QtCore.Qt.black),QtGui.QBrush(QtCore.Qt.black)
-
+    #
     def DefineLogFile(self):
         self.logfile_name=QFileDialog.getSaveFileName(self,"Save","","*.txt")[0]
         self.st_has_logfile=True
@@ -112,51 +92,48 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
           PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),OpCap(ha/h),Area(ha),Time Operation (h),Row Spacing(m), Holes,SeedByM,Real Rot Seed, FertByM, Seed Mode, Fert Mode")
         f.write("\n")
         f.close()
-                
+    #
     def ReloadLogFile(self):
         self.logfile_name=QFileDialog.getOpenFileName(self,"Open Log File",".","*.txt")[0]
         self.st_has_logfile=True
-
+    #
     def LoadSeedFile(self):
         seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.txt")[0]
         content=None # clear variable for security
         with open(seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
         f.close()
-
         self.lat_map_seed,self.long_map_seed,self.pop_map_seed=operation.ReadMapFile(content)
         for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
         self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-
+    #
     def LoadFertFile(self):
         fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.txt")[0]
         content=None # clear variable for security
         with open(fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
         f.close()
-
         self.lat_map_fert,self.long_map_fert,self.pop_map_fert=operation.ReadMapFile(content)
         for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
         self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-
+    #
     def ControlFunction(self):  #Main Loop of Software
-
+    #
         if GPIO.input(pinOnOffButton):
-            self.lb_status.setText("Button ON")
+            self.lb_status.setText("Habilitado")
             self.encoder_timer.start(10) # Start Encoder Function
             self.seed_germ=int(self.sl_germ.value())             # Read Germination
             self.ql_germ.setPlainText(str(self.seed_germ))
             self.disk_hole=int(self.list_holes.currentText())             #Read Hole Disk
-            self.lat_atual,self.long_atual,self.pdop,self.status=operation.ReadGPS(ser.readline())   #Read GPS (if MODE=FIX, only for log)
+            self.lat_atual,self.long_atual,self.pdop,self.status=operation.ReadGPS(gps.readline())   #Read GPS (if MODE=FIX, only for log)
             self.row_spacing=float(self.sl_row_spacing.value())/100.0             #Read Spacing
             self.ql_row_spacing.setPlainText(str(self.row_spacing))
             self.fert_wgt=operation.ReadWeight(pinLoadCell)             #Read Fert Weight
-
             #Read Simulated Speed (By test only)
             if self.cb_motion_simulate.isChecked(): 
                 self.speed=float(self.sl_sim_speed.value())/50.0 
                 self.ql_sim_speed.setPlainText(str(self.speed))
-
+            ###
             ###Seeder Distributor###
-
+            ###
             if self.list_seed.currentText()=="FIX": #Fix seed distribuition rate
                 self.seed_mode="FIX"
                 self.popseed=int(self.sl_popseed.value())*1000 
@@ -266,7 +243,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)
-            self.lb_status.setText("Button OFF")
+            self.lb_status.setText("Desabilitado")
             self.encoder_timer.stop()
             self.speed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap=0,0,0,0,0,0,0
 
