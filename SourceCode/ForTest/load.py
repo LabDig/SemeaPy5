@@ -33,6 +33,7 @@ while True:
     value_array = np.append(value_array, value)
 
     avg_value = np.mean(value_array)
+    print (avg_value)
 
     if len(value_array) == max_samples:
         value_array = np.delete(value_array, 0) # delete the first value
@@ -48,4 +49,4 @@ while True:
     res.write(str(avg_value))
     res.write("\n")
     res.close()
-    time.sleep(0.05)
+    time.sleep(1)

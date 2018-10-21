@@ -33,7 +33,7 @@ def Fert(v,rate,spacing):
 
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
-    return round(60*3.3*seeds*v/holes,1),round(seeds,1)
+    return round(3.3*seeds*v/holes,2),round(seeds,1)
 
 # Find the Neart point in the map
 def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
@@ -102,24 +102,24 @@ def SeedSpeed():
         aux_i_seed=0
     last_st_seed=atual_st_seed #update last status
 
-    return round(real_rot_seed,1)
+    return round(real_rot_seed,2)
 
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
 
     atual_st_wheel=EncRoda.position
     
-    if (atual_st_wheel==2): time_start_wheel=time.time()
+    if (atual_st_wheel<0): time_start_wheel=time.time()
 
-    if (atual_st_wheel==60): 
-        real_rot_wheel= (0.5)/(time.time()-time_start_wheel)
-        Encroda.zero()
-
+    if (atual_st_wheel<-60):
+        real_rot_wheel= (2.0)/(time.time()-time_start_wheel)
+        EncRoda.zero()
+ 
     #for dectect if encoder its stop, 
     if (time.time()-time_start_wheel > 0.5): real_rot_wheel=0
     last_st_wheel=atual_st_wheel #update last status
 
-    return round(real_rot_wheel,1)
+    return round(real_rot_wheel,2)
 
 def ReadWeight(pin):
     global weight_array
