@@ -1,0 +1,16 @@
+False
+a.txt
+False
+70000
+95
+False
+a.txt
+False
+100
+0.75
+False
+res.txt
+K01
+F01
+0.0
+0.0
