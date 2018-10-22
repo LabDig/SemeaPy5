@@ -1,15 +1,15 @@
 False
-/media/root/60B044CCB044A9FC/Users/hp/Dropbox/Projeto Semeadora_Doutorado/SemeaPy_PyQt_Semeadora/Semeapy5/SourceCode/for_map_test.txt
+
+True
+10000
+96
 False
-0
-95
-False
-/media/root/60B044CCB044A9FC/Users/hp/Dropbox/Projeto Semeadora_Doutorado/SemeaPy_PyQt_Semeadora/Semeapy5/SourceCode/for_map_test.txt
+
 False
 0
 0.75
 False
-res.txt
+/media/root/60B044CCB044A9FC/Users/hp/Dropbox/Projeto Semeadora_Doutorado/SemeaPy_PyQt_Semeadora/Semeapy5/SourceCode/f01.txt
 K01
 F01
 0.0

@@ -72,6 +72,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.log_timer.timeout.connect(self.LogFunction)
         self.time_control=0.5 #in s
         self.control_timer.start(self.time_control*1000) #
+        self.encoder_timer.start(10) # Start Encoder Function
+        self.gps_timer.start(2500) # Start GPS Function
+        self.log_timer.start(5000) # Start Log Function
+        
         #button for logfile
         self.bt_define_logfile.clicked.connect(self.DefineLogFile)
         #button for map
@@ -133,11 +137,15 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.checkBox_4.setCheckState ("True" in self.st_chk_4)
         self.ql_machine_id.setPlainText(str(self.machineID))
         self.ql_field_id.setPlainText(str(self.fieldID))
-
+        #
         self.checkBox.stateChanged.connect(self.LoadSeedMap)
-        if self.checkBox.isChecked(): self.LoadSeedMap
-        self.checkBox_2.stateChanged.connect(self.LoadFertMap)
-        if self.checkBox_3.isChecked():self.LoadFertMap
+        if self.checkBox.isChecked():
+            self.LoadSeedMap()
+        else: self.seedfile_name=""
+        self.checkBox_3.stateChanged.connect(self.LoadFertMap)
+        if self.checkBox_3.isChecked():
+            self.LoadFertMap()
+        else: self.fertfile_name="" 
 
     def LoadSeedMap(self):
         if self.checkBox.isChecked():
@@ -150,7 +158,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             del content
 
     def LoadFertMap(self):
-        if self.checkBox_2.isChecked():
+        if self.checkBox_3.isChecked():
             content=None # clear variable for security
             with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
             f.close()
@@ -180,9 +188,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def DefineLogFile(self):
         self.logfile_name=QFileDialog.getSaveFileName(self,"Define Logfile","","*.txt")[0]
         f=open(self.logfile_name,'w')
-        f.write("Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status, \
-          PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),  Instantanea OpCap(ha/h),Area(ha),Row Spacing(m), \
-          Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
+        f.write("Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status,\
+PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),  Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),\
+Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
         f.write("\n")
         f.close()
     #
@@ -194,8 +202,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
        
     # short funcions
     def GPSFunction(self):
-        #self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
-        print ("Read GPS")
+        if True: #GPIO.input(pinOnOffButton):
+            pass
+            #self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
     #
     def SaveCal(self):
         sum_wgt=0
@@ -217,9 +226,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     #
         if True: #GPIO.input(pinOnOffButton):
             self.lb_status.setText("Habilitado")
-            self.encoder_timer.start(10) # Start Encoder Function
-            self.gps_timer.start(2500) # Start GPS Function
-            self.log_timer.start(5000) # Start GPS Function
             self.ql_germ.setPlainText(str(self.seed_germ)) # Write seed_germination
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
             self.ql_row_spacing.setPlainText(str(self.row_spacing)) #Write Spacing
@@ -245,6 +251,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 
             elif self.checkBox_2.isChecked(): #Fix seed distribuition rate
                 self.seed_mode="FIX"
+                self.scene.clear()
                 self.ql_set_pop.setPlainText(str(self.popseed)) #Write value
                 if self.status=='A': #plot in graph if have gps signal
                     self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
@@ -273,6 +280,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 
             elif self.checkBox_4.isChecked(): #Fix seed distribuition rate
                 self.fert_mode="FIX"
+                self.scene.clear()
                 self.ql_set_fert.setPlainText(str(self.fert_rt)) #Write value
                 if self.status=='A': #plot in graph if have gps signal
                     self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
@@ -290,9 +298,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.rot_fert)
             #  
             #calculate operational capability and area
-            self.area=round(self.area+(self.row_spacing*self.speed*self.time_control/10000.0),1) #in ha
-            self.time_operation=round(self.time_operation+(self.time_control/3600.0),5)   # in h
+            inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,2)
+            self.area=round(self.area+inst_area,1) #in ha
+            inst_time=round(self.time_control/3600.0,5)
+            self.time_operation=round(self.time_operation+inst_time,5)   # in h
             self.opcap=round(self.area/(self.time_operation),2) # in ha/h
+            inst_opcap=inst_area/inst_time
 
         else: # If button is off
             #GPIO.output(pinEnable_Seed,GPIO.LOW)
@@ -310,38 +321,44 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ql_fert_rt.setPlainText(str(self.fert_rt))
         self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
         self.ql_area.setPlainText(str(self.area))
-        self.ql_opcap.setPlainText(str(self.opcap))
+        self.ql_opcap.setPlainText("M:"+str(self.opcap)+"..I:"+str(inst_opcap))
         
     def LogFunction(self):
-        string="Saving in: "+str(self.logfile_name)
-        self.ql_logfile.setPlainText(string)
-        if self.cb_remote.isChecked():
-            self.ql_remote_status.setPlainText("Enable")
-            sim800l.write ('AT+HTTPPARA="URL","http://ecosolucoes.net/andre/salvaarduino.php?ph="+String(ph)+"&turb="+String(turbidez)+"&k_comp="+\
-                         String(!digitalRead(bt_k_comp))+"&rt_comp="+String(!digitalRead(bt_rt_comp))+"&k_filt="+String(!digitalRead(bt_k_filt))+"&k_elev2="\
-                         +String(!digitalRead(bt_k_elev2))+"&k_elev1="+String(!digitalRead(bt_k_elev1))+"&k_lamp="+String(!digitalRead(bt_k_lamp))+"&k_agit="+\
-                         String(!digitalRead(bt_k_agit))+"&rt_agit="+String(!digitalRead(bt_rt_agit))'+'\r\n');
-            sim800l.write('AT+HTTPACTION=0'+'\r\n');
-            sim800l.write('AT+HTTPREAD'+'\r\n');
-        else:
-            self.ql_remote_status.setPlainText("Disable")
+        if self.speed>0.2 and True: #GPIO.input(pinOnOffButton)::
 
-        #Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status, \
-        #PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),  Instantanea OpCap(ha/h),Area(ha),Row Spacing(m), \
-        #Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode
+            string="Saving in: "+str(self.logfile_name)
+            self.ql_logfile.setPlainText(string)
+            #Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status, \
+            #PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),  Instantanea OpCap(ha/h),Area(ha),Row Spacing(m), \
+            #Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode
 
-        data_string=QDateTime.currentDateTime().toString(Qt.ISODate)+","+str(self.lat_utm)+","+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+\
-            str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+\
-            ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)+","\
-            +str(self.seed_mode)+","+str(self.fert_mode)
-        f=open(self.logfile_name,'a')
-        f.write(data_string)
-        f.write("\n")
-        f.close()
-    
+            data_string=QDateTime.currentDateTime().toString(Qt.ISODate)+","+str(self.lat_utm)+","+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+\
+                str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+\
+                ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)+","\
+                +str(self.seed_mode)+","+str(self.fert_mode)
+            f=open(self.logfile_name,'a')
+            f.write(data_string)
+            f.write("\n")
+            f.close()
+
+            
+            if self.cb_remote.isChecked():
+                self.ql_remote_status.setPlainText("Enable")
+                sim800l.write ('AT+HTTPPARA="URL","http://ecosolucoes.net/andre/salvaarduino.php?ph="+String(ph)+"&turb="+String(turbidez)+"&k_comp="+\
+                             String(!digitalRead(bt_k_comp))+"&rt_comp="+String(!digitalRead(bt_rt_comp))+"&k_filt="+String(!digitalRead(bt_k_filt))+"&k_elev2="\
+                             +String(!digitalRead(bt_k_elev2))+"&k_elev1="+String(!digitalRead(bt_k_elev1))+"&k_lamp="+String(!digitalRead(bt_k_lamp))+"&k_agit="+\
+                             String(!digitalRead(bt_k_agit))+"&rt_agit="+String(!digitalRead(bt_rt_agit))'+'\r\n');
+                sim800l.write('AT+HTTPACTION=0'+'\r\n');
+                sim800l.write('AT+HTTPREAD'+'\r\n');
+            else:
+                self.ql_remote_status.setPlainText("Disable")
+
+        else:self.ql_logfile.setPlainText("Not Saving...")
+        
     def EncoderFunction(self):
-        self.real_rot_seed=operation.SeedSpeed()
-        self.speed=operation.WheelSpeed()
+        if True: #GPIO.input(pinOnOffButton):
+            self.real_rot_seed=operation.SeedSpeed()
+            self.speed=operation.WheelSpeed()
  
     def Close(self):
         #save configuration

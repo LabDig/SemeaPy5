@@ -1,0 +1,1 @@
+Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status,           PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),  Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),           Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode
