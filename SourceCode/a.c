@@ -1,12 +1,12 @@
 False
-a.txt
+for_map_test.txt
 False
 70000
 95
 False
-a.txt
+for_map_test.txt
 False
-100
+0
 0.75
 False
 res.txt

@@ -57,9 +57,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.lat_map_fert,self.long_map_fert,self.map_fert,self.lat_utm,self.long_utm=[],[],[],0,0
         self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[]
         self.seed_mode,self.fert_mode="OFF","OFF"
-        self.has_seedmap,self.has_fertmap=False,False
         self.rot_seed,self.real_rot_seed,self.rot_fert=0.0,0.0,0.0
-        self.machineID,self.FieldID="",""
         self.wgt_voltage_cal=np.zeros(4)
         #exit button
         self.exit.clicked.connect(self.Close)
@@ -94,14 +92,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.Kpen,self.Kbrush=QtGui.QPen(QtCore.Qt.black),QtGui.QBrush(QtCore.Qt.black)
         #button plus and minus
         self.m_pop.clicked.connect(self.DecPop)
-        #self.ṕ_pop.clicked.connect(self.IncPop)
-        #self.m_seed_germ.clicked.connect(self.DecGer)
-        #self.ṕ_seed_germ.clicked.connect(self.IncGer)
-        #self.m_fert.clicked.connect(self.DecFert)
-        #self.ṕ_fert.clicked.connect(self.IncFert)
-        #self.m_row.clicked.connect(self.DecRow)
-        #self.ṕ_row.clicked.connect(self.IncRow)
-
+        self.p_pop.clicked.connect(self.IncPop)
+        self.m_germ.clicked.connect(self.DecGer)
+        self.p_germ.clicked.connect(self.IncGer)
+        self.m_fert.clicked.connect(self.DecFert)
+        self.p_fert.clicked.connect(self.IncFert)
+        self.m_row.clicked.connect(self.DecRow)
+        self.p_row.clicked.connect(self.IncRow)
         #keyboard button
         self.kbd.clicked.connect(lambda:os.system('florence'))
         self.kbd1.clicked.connect(lambda:os.system('florence'))
@@ -124,15 +121,25 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.cal_a=float(f.readline())
             self.cal_b=float(f.readline())
         f.close()
-        print (self.st_chk_2,bool(self.st_chk_2))
+        #set config
         self.seedfile_name=self.seedfile_name.rstrip()
         self.fertfile_name=self.fertfile_name.rstrip()
         self.logfile_name=self.logfile_name.rstrip()
-        self.checkBox.setCheckState (self.st_chk)
-        self.checkBox_2.setCheckState (self.st_chk_2)
-        self.checkBox_3.setCheckState (self.st_chk_3)
-        self.checkBox_4.setCheckState (self.st_chk_4)
+        self.machineID=self.machineID.rstrip()
+        self.fieldID=self.fieldID.rstrip()
+        self.checkBox.setCheckState ("True" in self.st_chk )
+        self.checkBox_2.setCheckState ("True" in self.st_chk_2)
+        self.checkBox_3.setCheckState ("True" in self.st_chk_3)
+        self.checkBox_4.setCheckState ("True" in self.st_chk_4)
+        self.ql_machine_id.setPlainText(str(self.machineID))
+        self.ql_field_id.setPlainText(str(self.fieldID))
 
+        self.checkBox.stateChanged.connect(self.LoadSeedMap)
+        if self.checkBox.isChecked(): self.LoadSeedMap
+        self.checkBox_2.stateChanged.connect(self.LoadFertMap)
+        if self.checkBox_3.isChecked():self.LoadFertMap
+
+    def LoadSeedMap(self):
         if self.checkBox.isChecked():
             content=None # clear variable for security
             with open(self.seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
@@ -140,10 +147,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.lat_map_seed,self.long_map_seed,self.pop_map_seed=operation.ReadMapFile(content)
             for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
             self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-            if len(self.lat_map_seed) >1 : self.has_seedmap=True
             del content
-            
-        if self.checkBox_3.isChecked():
+
+    def LoadFertMap(self):
+        if self.checkBox_2.isChecked():
             content=None # clear variable for security
             with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
             f.close()
@@ -151,7 +158,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             del content
             for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
             self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-            if len(self.lat_map_fert) >1 : self.has_fertmap=True
             
     #
     def DecPop(self):
@@ -160,7 +166,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.popseed=self.popseed+2500
     def DecGer(self):
         self.seed_germ=self.seed_germ-1
-    def IncFer(self):
+    def IncGer(self):
         self.seed_germ=self.seed_germ+1
     def DecFert(self):
         self.fert_rt=self.fert_rt-10
@@ -207,8 +213,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.cal_b=round(self.cal_b,4)
     #
     def ControlFunction(self):  #Main Loop of Software
-
-
+    
     #
         if True: #GPIO.input(pinOnOffButton):
             self.lb_status.setText("Habilitado")
@@ -229,7 +234,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             ###
             ###Seeder Distributor###
             ###
-            if self.checkBox.isChecked() and self.has_seedmap and self.status=='A': #Variable Seed base on map and have map and have signal gps
+            if self.checkBox.isChecked() and len(self.lat_map_seed)>1 and self.status=='A': #Variable Seed base on map and have map and have signal gps
                 self.seed_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
                 self.popseed,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
@@ -246,11 +251,11 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                     self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             
             elif self.checkBox.isChecked() and self.checkBox_2.isChecked(): #if two mode is checked
-                self.checkBox.setEnabled (False)
+                self.checkBox.setCheckState (False)
 
             else:
                 self.seed_mode="OFF"
-                self.pop_seed=0
+                self.popseed=0
                 #GPIO.output(pinEnable_Seed,GPIO.LOW)
             #
             self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
@@ -258,7 +263,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             #
             ####Fertilizer Distribution###
             #
-            if self.checkBox_3.isChecked() and self.has_fertmap and self.status=='A': #Variable Fert base on map and have map and have signal gps
+            if self.checkBox_3.isChecked() and len(self.lat_map_fert)>1 and self.status=='A': #Variable Fert base on map and have map and have signal gps
                 self.fert_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
                 self.fertrt,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.pop_map_fert)
@@ -273,8 +278,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                     self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                     self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             
-            elif self.checkBox_3.isChecked() and self.checkBox_3.isChecked(): #if two mode is checked
-                self.checkBox_3.setEnabled (False)
+            elif self.checkBox_3.isChecked() and self.checkBox_4.isChecked(): #if two mode is checked
+                self.checkBox_3.setCheckState (False)
 
             else:
                 self.fert_mode="OFF"
