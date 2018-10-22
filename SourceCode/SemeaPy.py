@@ -8,42 +8,39 @@ from PyQt5.QtWidgets import QFileDialog
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import QDateTime,Qt
 import math
-import utm
-from time import time
+import time
 import serial
 # import python files
 from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
 from scipy import stats
 import numpy as np
-'''
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
 from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
-'''
 #OnOff
 pinOnOffButton="P8_16"
-#GPIO.setup(pinOnOffButton, GPIO.IN) 
+GPIO.setup(pinOnOffButton, GPIO.IN) 
 #PWM Seed
 pinPWM_Seed="P8_13"
-#PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
+PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
-#GPIO.setup(pinEnable_Seed, GPIO.OUT)
-#GPIO.output(pinEnable_Seed,GPIO.LOW)
+GPIO.setup(pinEnable_Seed, GPIO.OUT)
+GPIO.output(pinEnable_Seed,GPIO.LOW)
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
-#PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
+PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 pinEnable_Fert="P8_9"
-#GPIO.setup(pinEnable_Fert, GPIO.OUT)
-#GPIO.output(pinEnable_Fert,GPIO.LOW)
+GPIO.setup(pinEnable_Fert, GPIO.OUT)
+GPIO.output(pinEnable_Fert,GPIO.LOW)
 #Celula de Carga
-#ADC.setup()
+ADC.setup()
 pinLoadCell="P9_33"
 #GPS
-#gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
+gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 #3G
-#sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
+sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
 #
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
@@ -54,11 +51,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.speed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
         self.fertbym,self.seedbym,self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=0,0,0,0,0,0.0,0,0
         self.row_spacing,self.disk_hole,self.seed_germ,self.logfile_name=0,0,0,""
-        self.lat_map_fert,self.long_map_fert,self.map_fert,self.lat_utm,self.long_utm=[],[],[],0,0
+        self.lat_map_fert,self.long_map_fert,self.map_fertrt,self.lat_utm,self.long_utm=[],[],[],0,0
         self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[]
         self.seed_mode,self.fert_mode="OFF","OFF"
         self.rot_seed,self.real_rot_seed,self.rot_fert=0.0,0.0,0.0
         self.wgt_voltage_cal=np.zeros(4)
+        self.inst_opcap,self.inst_area,self.inst_time=0,0,0
         #exit button
         self.exit.clicked.connect(self.Close)
         #timers
@@ -106,17 +104,18 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         #keyboard button
         self.kbd.clicked.connect(lambda:os.system('florence'))
         self.kbd1.clicked.connect(lambda:os.system('florence'))
+        self.conffile_name="/root/SemeaPy5/SourceCode/conf.txt"
         #read file configuration
-        with open("conf.txt", "r",encoding='latin-1') as f:
+        with open(self.conffile_name, "r",encoding='latin-1') as f:
             self.st_chk=(f.readline())
             self.seedfile_name=f.readline()
             self.st_chk_2=(f.readline())
-            self.popseed=int(f.readline())
+            self.popseed=float(f.readline())
             self.seed_germ=int(f.readline())
             self.st_chk_3=(f.readline())
             self.fertfile_name=f.readline()
             self.st_chk_4=(f.readline())
-            self.fert_rt=int(f.readline())
+            self.fert_rt=float(f.readline())
             self.row_spacing=float(f.readline())
             self.st_cb_remote=f.readline()
             self.logfile_name=f.readline()
@@ -140,11 +139,20 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         #
         self.checkBox.stateChanged.connect(self.LoadSeedMap)
         if self.checkBox.isChecked():
-            self.LoadSeedMap()
+            try:
+                self.LoadSeedMap()
+            except:
+                self.lb_status.setText("No Fert Map")
+                pass
         else: self.seedfile_name=""
         self.checkBox_3.stateChanged.connect(self.LoadFertMap)
         if self.checkBox_3.isChecked():
-            self.LoadFertMap()
+            try:
+                self.LoadFertMap()
+            except:
+                self.lb_status.setText("No Fert Map")
+                pass
+                
         else: self.fertfile_name="" 
 
     def LoadSeedMap(self):
@@ -162,7 +170,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             content=None # clear variable for security
             with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
             f.close()
-            self.lat_map_fert,self.long_map_fert,self.pop_map_fert=operation.ReadMapFile(content)
+            self.lat_map_fert,self.long_map_fert,self.map_fertrt=operation.ReadMapFile(content)
             del content
             for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
             self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
@@ -202,30 +210,29 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
        
     # short funcions
     def GPSFunction(self):
-        if True: #GPIO.input(pinOnOffButton):
-            pass
-            #self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
+        if GPIO.input(pinOnOffButton):
+            self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
     #
     def SaveCal(self):
         sum_wgt=0
-        for i in range(0,10):
+        for i in range(0,20):
             value=round(1.8*ADC.read(pinLoadCell),2)
             sum_wgt=sum_wgt+value
-            self.qd_voltage_signal.setText(str(value))
             time.sleep(0.5)
-        self.wgt_voltage_cal[self.list_cal_wgt.currentIndex()]=sum_wgt/10
+        self.wgt_voltage_cal[self.list_cal_wgt.currentIndex()]=round(sum_wgt/10,5)
+        self.qd_voltage_cal.setPlainText(str(round(sum_wgt/10,5)))
     #
     def Calibration(self):
-            mass = np.array([6.4,11.4,16.4,21.4]) #ph
-            self.cal_a,self.cal_b,r_value,p_value,std_error=stats.linregress(self.wgt_voltage,mass)
+            mass = np.array([6.4,11.4,16.4,21.4]) #mass value
+            self.cal_a,self.cal_b,r_value,p_value,std_error=stats.linregress(self.wgt_voltage_cal,mass)
             self.cal_a=round(self.cal_a,4)
             self.cal_b=round(self.cal_b,4)
     #
     def ControlFunction(self):  #Main Loop of Software
     
     #
-        if True: #GPIO.input(pinOnOffButton):
-            self.lb_status.setText("Habilitado")
+        if GPIO.input(pinOnOffButton):
+            self.lb_status.setText("Habilitado. Fert: "+self.fert_mode+" Seed:"+self.seed_mode)
             self.ql_germ.setPlainText(str(self.seed_germ)) # Write seed_germination
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
             self.ql_row_spacing.setPlainText(str(self.row_spacing)) #Write Spacing
@@ -259,11 +266,10 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
             
             elif self.checkBox.isChecked() and self.checkBox_2.isChecked(): #if two mode is checked
                 self.checkBox.setCheckState (False)
-
+ 
             else:
                 self.seed_mode="OFF"
                 self.popseed=0
-                #GPIO.output(pinEnable_Seed,GPIO.LOW)
             #
             self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
             operation.ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,self.rot_seed,self.real_rot_seed)
@@ -273,7 +279,7 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
             if self.checkBox_3.isChecked() and len(self.lat_map_fert)>1 and self.status=='A': #Variable Fert base on map and have map and have signal gps
                 self.fert_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
-                self.fertrt,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.pop_map_fert)
+                self.fert_rt,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
                 # add atual and used point in view
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                 self.scene.addRect(lat_used,long_used,0.5,0.5,self.Kpen,self.Kbrush)
@@ -292,27 +298,24 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
             else:
                 self.fert_mode="OFF"
                 self.fert_rt=0
-                #GPIO.output(pinEnable_Fert,GPIO.LOW)
             #
-            self.rot_fert,self.fertbym=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
-            operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.rot_fert)
+
+            self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
+            operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.fertbys)
+
             #  
             #calculate operational capability and area
-            inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,2)
-            self.area=round(self.area+inst_area,1) #in ha
-            inst_time=round(self.time_control/3600.0,5)
-            self.time_operation=round(self.time_operation+inst_time,5)   # in h
+            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,2)
+            self.area=round(self.area+self.inst_area,1) #in ha
+            self.inst_time=round(self.time_control/3600.0,5)
+            self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
             self.opcap=round(self.area/(self.time_operation),2) # in ha/h
-            inst_opcap=inst_area/inst_time
+            self.inst_opcap=self.inst_area/self.inst_time
 
         else: # If button is off
-            #GPIO.output(pinEnable_Seed,GPIO.LOW)
-            #GPIO.output(pinEnable_Fert,GPIO.LOW)
+            GPIO.output(pinEnable_Seed,GPIO.LOW)
+            GPIO.output(pinEnable_Fert,GPIO.LOW)
             self.lb_status.setText("Desabilitado")
-            self.encoder_timer.stop()
-            self.gps_timer.stop()
-            self.log_timer.stop()
-            self.speed,self.pdop,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap=0,0,0,0,0,0,0
 
         # Update LineEdit in main tab
         self.ql_speed.setPlainText(str(self.speed))
@@ -321,11 +324,11 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
         self.ql_fert_rt.setPlainText(str(self.fert_rt))
         self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
         self.ql_area.setPlainText(str(self.area))
-        self.ql_opcap.setPlainText("M:"+str(self.opcap)+"..I:"+str(inst_opcap))
+        self.ql_opcap.setPlainText("M:"+str(self.opcap)+"..I:"+str(self.inst_opcap))
+        
         
     def LogFunction(self):
-        if self.speed>0.2 and True: #GPIO.input(pinOnOffButton)::
-
+        if GPIO.input(pinOnOffButton):
             string="Saving in: "+str(self.logfile_name)
             self.ql_logfile.setPlainText(string)
             #Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status, \
@@ -352,17 +355,18 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
                 sim800l.write('AT+HTTPREAD'+'\r\n');
             else:
                 self.ql_remote_status.setPlainText("Disable")
+        else:
+            self.ql_logfile.setPlainText("Not Saving")
 
-        else:self.ql_logfile.setPlainText("Not Saving...")
         
     def EncoderFunction(self):
-        if True: #GPIO.input(pinOnOffButton):
+        if GPIO.input(pinOnOffButton):
             self.real_rot_seed=operation.SeedSpeed()
             self.speed=operation.WheelSpeed()
  
     def Close(self):
         #save configuration
-        with open("conf.txt", "w",encoding='latin-1') as f:
+        with open(self.conffile_name, "w",encoding='latin-1') as f:
             f.write(str(self.checkBox.isChecked())+"\n")
             f.write(self.seedfile_name+"\n")
             f.write(str(self.checkBox_2.isChecked())+"\n")
@@ -380,8 +384,8 @@ Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode")
             f.write(str(self.cal_a)+"\n")
             f.write(str(self.cal_b)+"\n")
         f.close()
-        #GPIO.cleanup()
-        #PWM.cleanup()
+        GPIO.cleanup()
+        PWM.cleanup()
         self.control_timer.stop()
         self.encoder_timer.stop()
         self.gps_timer.stop()

@@ -1,16 +1,16 @@
 False
 
-True
-10000
-96
-False
-
 False
 0
+95
+True
+/root/SemeaPy5/SourceCode/fert_map_test.txt
+False
+200.0
 0.75
 False
-/media/root/60B044CCB044A9FC/Users/hp/Dropbox/Projeto Semeadora_Doutorado/SemeaPy_PyQt_Semeadora/Semeapy5/SourceCode/f01.txt
+/root/res.txt
 K01
 F01
-0.0
+1.0
 0.0

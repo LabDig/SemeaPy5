@@ -2,7 +2,6 @@ import math
 import utm
 import time
 import numpy as np
-'''
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
@@ -14,18 +13,17 @@ EncRoda.enable()
 #Encoder Dosador Semente
 EncSeed=RotaryEncoder(eQEP0)
 EncSeed.enable()
-'''
+#
 atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-99,-99,0,0
 atual_st_wheel,last_st_wheel,time_start_wheel=-99,-99,0
 real_rot_seed,real_rot_wheel=0,0
-lat, long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
+lat,long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
 seed_cor=0
 weight_array=[]
 #
 def Fert(v,rate,spacing):
-    fertbym=rate*spacing/10000.0
-    factor=0.026  #kg of fertilizer in one revolution of screw
-    return round(60*fertbym*v/factor,1),round(fertbym,1)
+    fertybym=rate*spacing/10000.0
+    return round(fertybym,3),round(fertybym*v,3)
 #
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
@@ -54,7 +52,7 @@ def ReadMapFile(data):
     return x,y,z
 #
 def ReadGPS(nmea):
-    global lat,long,lat_utm,long_utm_pdop,status
+    global lat,long,lat_utm,long_utm,pdop,status
     try:
         nmea=nmea.decode("utf-8")
         nmea_array=nmea.split(',')
@@ -65,12 +63,12 @@ def ReadGPS(nmea):
                 latMin=float(nmea_array[3][2:])/60   #
                 lat=((float(nmea_array[3][0:2])+latMin)) #
                 lonMin=float(nmea_array[5][3:])/60   # 
-                lon=((float(nmea_array[5][0:3])+lonMin)) #
+                long=((float(nmea_array[5][0:3])+lonMin)) #
                 latHem=nmea_array[4]  # N or S
                 lonHem=nmea_array[6]  # W or E
-                if lonHem=='W': lon=-lon
+                if lonHem=='W': long=-long
                 if latHem=='S': lat=-lat
-                utm_conv=utm.from_latlon(lat,lon)
+                utm_conv=utm.from_latlon(lat,long)
                 lat_utm=float(utm_conv[0])
                 long_utm=float(utm_conv[1])
         if nmea_array[0]=='$GPGSA'and status=='A' and size==18:
@@ -86,7 +84,7 @@ def ReadGPS(nmea):
 def SeedSpeed():
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed
     
-    atual_st_seed=0#EncSeed.position
+    atual_st_seed=EncSeed.position
     
     #if have up border
     if (last_st_seed==0 and atual_st_seed==-1): aux_i_seed=aux_i_seed+1
@@ -103,7 +101,7 @@ def SeedSpeed():
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
 
-    atual_st_wheel=0#EncRoda.position
+    atual_st_wheel=EncRoda.position
     
     if (atual_st_wheel<0): time_start_wheel=time.time()
 
@@ -121,7 +119,7 @@ def ReadWeight(pin,cal_a,cal_b):
     global weight_array
 
     #Calibration
-    value=10#ADC.read(pin)
+    value=1.8*ADC.read(pin)
     weight_array=np.append(weight_array,value)
     avg_value = np.mean(weight_array)
 
@@ -130,22 +128,26 @@ def ReadWeight(pin,cal_a,cal_b):
 
     massa=avg_value*cal_a + cal_b #massa (g) =x (v) * a +b
 
-    return round(massa,1)
+    return round(massa,3)
 
 #
 def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,rot_seed,real_rot_seed):
     global seed_cor
 
-    dt=(1.6535*rot_seed+9.5872)+seed_cor
+    dt=100*rot_seed#+seed_cor #experimental calibration Equation
     if dt>100.0 : dt=100.0
-    if dt<25 : dt=25.0
-    #PWM.set_duty_cycle(pinPWM_Seed,dt)
-    #GPIO.output(pinEnable_Seed,GPIO.HIGH)
-    seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
+    if dt<0 : dt=0
+    PWM.set_duty_cycle(pinPWM_Seed,dt)
+    #seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
+    if dt>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
+    else:GPIO.output(pinEnable_Seed,GPIO.LOW)
 
 #    
-def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,rot_fert):
-    pass
-    #PWM.set_duty_cycle(pinPWM_Fert,60)
-    #GPIO.output(pinEnable_Fert,GPIO.HIGH)
-    
+def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys):
+    dt=(1300*fertbys) # Experimental Calibration Equation
+    if dt>100.0 : dt=100.0
+    if dt<0 : dt=0
+    PWM.set_duty_cycle(pinPWM_Fert,dt)
+    if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
+    else:GPIO.output(pinEnable_Fert,GPIO.LOW)
+
