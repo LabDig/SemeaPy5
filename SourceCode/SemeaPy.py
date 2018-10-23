@@ -15,34 +15,33 @@ from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
 from scipy import stats
 import numpy as np
-'''
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
 from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
-'''
+#
 #OnOff
 pinOnOffButton="P8_16"
-#GPIO.setup(pinOnOffButton, GPIO.IN) 
+GPIO.setup(pinOnOffButton, GPIO.IN) 
 #PWM Seed
 pinPWM_Seed="P8_13"
-#PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
+PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
-#GPIO.setup(pinEnable_Seed, GPIO.OUT)
-#GPIO.output(pinEnable_Seed,GPIO.LOW)
+GPIO.setup(pinEnable_Seed, GPIO.OUT)
+GPIO.output(pinEnable_Seed,GPIO.LOW)
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
-#PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
+PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 pinEnable_Fert="P8_9"
-#GPIO.setup(pinEnable_Fert, GPIO.OUT)
-#GPIO.output(pinEnable_Fert,GPIO.LOW)
+GPIO.setup(pinEnable_Fert, GPIO.OUT)
+GPIO.output(pinEnable_Fert,GPIO.LOW)
 #Celula de Carga
-#ADC.setup()
+ADC.setup()
 pinLoadCell="P9_33"
 #GPS
-#gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
+gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 #3G
-#sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
+sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
 #
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
@@ -104,8 +103,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         #buton calibrate
         self.bt_calibrate.clicked.connect(self.Calibration)
         #keyboard button
-        self.kbd.clicked.connect(lambda:os.system('florence'))
-        self.kbd1.clicked.connect(lambda:os.system('florence'))
+        self.kbd.clicked.connect(lambda:os.system('xvkbd'))
+        self.kbd1.clicked.connect(lambda:os.system('xvkbd'))
         #Cal
         #button plus and minus
         self.m_dt_seed.clicked.connect(self.DecSeedCal)
@@ -196,8 +195,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(str(self.cal_a)+"\n")
             f.write(str(self.cal_b)+"\n")
         f.close()
-        #GPIO.cleanup()
-        #PWM.cleanup()
+        GPIO.cleanup()
+        PWM.cleanup()
         self.control_timer.stop()
         self.encoder_timer.stop()
         self.gps_timer.stop()
@@ -207,10 +206,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def FitMap(self): self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio) # fit the map
     def ZoomOut(self):
         self.zoom=self.zoom/2
-        self.gv.scale(self.zoom, -self.zoom)
+        self.gv.scale(self.zoom,self.zoom)
     def ZoomIn(self):
         self.zoom=self.zoom*2
-        self.gv.scale(self.zoom, -self.zoom)
+        self.gv.scale(self.zoom,self.zoom)
 ###
 ##Config 01
 ###
@@ -297,41 +296,45 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
     def DecSeedCal(self):
         self.dt_seed_cal=self.dt_seed_cal-10
         self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
-        #PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
-        #GPIO.output(pinEnable_Seed,GPIO.HIGH)
+        PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
+        GPIO.output(pinEnable_Seed,GPIO.HIGH)
         
     def IncSeedCal(self):
         self.dt_seed_cal=self.dt_seed_cal+10
         self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
-        #PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
-        #GPIO.output(pinEnable_Seed,GPIO.HIGH)
+        PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
+        GPIO.output(pinEnable_Seed,GPIO.HIGH)
 
     def DecFertCal(self):
         self.dt_fert_cal=self.dt_fert_cal-10
         self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
-        #PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
-        #GPIO.output(pinEnable_Fert,GPIO.HIGH)
+        PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
+        GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
     def IncFertCal(self):
         self.dt_fert_cal=self.dt_fert_cal-10
         self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
-        #PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
-        #GPIO.output(pinEnable_Fert,GPIO.HIGH)
+        PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
+        GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
 ##TimeOutFunctions
     def GPSFunction(self):
-        pass
-        #if TrueGPIO.input(pinOnOffButton):
-         #   self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
+        if GPIO.input(pinOnOffButton):
+            try:
+                self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
+            except:
+                self.ql_remote_status.setPlainText("GPS Error")
+                pass
+                
 
     def EncoderFunction(self):
-        pass
-        #if GPIO.input(pinOnOffButton):
-         #   self.real_rot_seed=operation.SeedSpeed()
-        #    self.speed=operation.WheelSpeed()
+        if GPIO.input(pinOnOffButton):
+            self.real_rot_seed=operation.SeedSpeed()
+            print(self.real_rot_seed)
+            self.speed=operation.WheelSpeed()
 
     def LogFunction(self):
-        if True:# GPIO.input(pinOnOffButton):
+        if GPIO.input(pinOnOffButton):
             string="Saving in: "+str(self.logfile_name)
             self.ql_logfile.setPlainText(string)
 
@@ -346,9 +349,13 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             #Remote
             if self.cb_remote.isChecked():
                 self.ql_remote_status.setPlainText("Enable")
-                sim800l.write ('AT+HTTPPARA="URL","http://'+'\r\n');
-                sim800l.write('AT+HTTPACTION=0'+'\r\n');
-                sim800l.write('AT+HTTPREAD'+'\r\n');
+                try:
+                    sim800l.write ('AT+HTTPPARA="URL","http://'+'\r\n');
+                    sim800l.write('AT+HTTPACTION=0'+'\r\n');
+                    sim800l.write('AT+HTTPREAD'+'\r\n');
+                except:
+                    self.ql_remote_status.setPlainText("3G Error")
+                    pass
             else:
                 self.ql_remote_status.setPlainText("Disable")
         else:
@@ -357,7 +364,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
 ###
     def ControlFunction(self):  
 
-        if True: #GPIO.input(pinOnOffButton):
+        if GPIO.input(pinOnOffButton):
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
             self.fert_wgt=operation.ReadWeight(pinLoadCell,self.cal_a,self.cal_b) #Read Fert Weight
             #Read Simulated Speed (By test only)
@@ -441,8 +448,8 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
         #
         else: # If button is off
-            #GPIO.output(pinEnable_Seed,GPIO.LOW)
-            #GPIO.output(pinEnable_Fert,GPIO.LOW)
+            GPIO.output(pinEnable_Seed,GPIO.LOW)
+            GPIO.output(pinEnable_Fert,GPIO.LOW)
             self.lb_status.setText("Desabilitado")
 #Run the app:
 if __name__ == '__main__':

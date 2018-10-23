@@ -2,7 +2,7 @@ import math
 import utm
 import time
 import numpy as np
-'''
+#
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
@@ -14,7 +14,6 @@ EncRoda.enable()
 #Encoder Dosador Semente
 EncSeed=RotaryEncoder(eQEP0)
 EncSeed.enable()
-'''
 #
 atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-99,-99,0,0
 atual_st_wheel,last_st_wheel,time_start_wheel=-99,-99,0
@@ -84,6 +83,7 @@ def ReadGPS(nmea):
 def SeedSpeed():
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed
     atual_st_seed=EncSeed.position
+    print(atual_st_seed)
     #if have up border
     if (last_st_seed==0 and atual_st_seed==-1): aux_i_seed=aux_i_seed+1
     #if one up border is detectec start the time
@@ -92,6 +92,7 @@ def SeedSpeed():
     if (aux_i_seed==20):
         real_rot_seed= (1)/(time.time()-time_start_seed)
         aux_i_seed=0
+        
     last_st_seed=atual_st_seed #update last status
     return round(real_rot_seed,2)
 #
@@ -109,7 +110,7 @@ def WheelSpeed():
 #
 def ReadWeight(pin,cal_a,cal_b):
     global weight_array
-    value=1.8#*ADC.read(pin)
+    value=1.8*ADC.read(pin)
     weight_array=np.append(weight_array,value)
     avg_value = np.mean(weight_array)
     # delete the first value of arry
@@ -121,15 +122,15 @@ def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,rot_seed,real_rot_seed):
     dt=100*rot_seed#+seed_cor #experimental calibration Equation
     if dt>100.0 : dt=100.0
     if dt<0 : dt=0
-    #PWM.set_duty_cycle(pinPWM_Seed,dt)
-    #seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
-    #if dt>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
-    #else:GPIO.output(pinEnable_Seed,GPIO.LOW)
+    PWM.set_duty_cycle(pinPWM_Seed,dt)
+    seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
+    if dt>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
+    else:GPIO.output(pinEnable_Seed,GPIO.LOW)
 #    
 def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys):
     dt=(1300*fertbys) # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
     if dt<0 : dt=0
-    #PWM.set_duty_cycle(pinPWM_Fert,dt)
-    #if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
-    #else:GPIO.output(pinEnable_Fert,GPIO.LOW)
+    PWM.set_duty_cycle(pinPWM_Fert,dt)
+    if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
+    else:GPIO.output(pinEnable_Fert,GPIO.LOW)
