@@ -216,24 +216,30 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 ###
     def LoadSeedMap(self):
         if self.cd_seed_map.isChecked():
-            content=None # clear variable for security
-            with open(self.seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
-            f.close()
-            self.lat_map_seed,self.long_map_seed,self.pop_map_seed=operation.ReadMapFile(content)
-            for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
-            self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-            del content
+            if ".txt" in self.seedfile_name:
+                content=None # clear variable for security
+                with open(self.seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
+                f.close()
+                self.lat_map_seed,self.long_map_seed,self.pop_map_seed=operation.ReadMapFile(content)
+                for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
+                self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
+                del content
+            else:
+                print ("shape")
 
     def LoadFertMap(self):
         if self.cb_fert_map.isChecked():
-            content=None # clear variable for security
-            with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
-            f.close()
-            self.lat_map_fert,self.long_map_fert,self.map_fertrt=operation.ReadMapFile(content)
-            del content
-            for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
-            self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-            
+            if ".txt" in self.fertfile_name:
+                content=None # clear variable for security
+                with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
+                f.close()
+                self.lat_map_fert,self.long_map_fert,self.map_fertrt=operation.ReadMapFile(content)
+                del content
+                for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
+                self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
+            else:
+                print ("shape")
+                
     def DecPop(self):
         self.popseed=self.popseed-2500
         self.ql_set_pop.setPlainText(str(self.popseed))
