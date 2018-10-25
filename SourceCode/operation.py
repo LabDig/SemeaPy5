@@ -21,6 +21,7 @@ real_rot_seed,real_rot_wheel=0,0
 lat,long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
 seed_cor=0
 weight_array=[]
+start_t_seed=False
 #
 def Fert(v,rate,spacing):
     fertybym=rate*spacing/10000.0
@@ -81,24 +82,27 @@ def ReadGPS(nmea):
     return lat_utm,long_utm,lat,long,pdop,status
 #
 def SeedSpeed():
-    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed
-    atual_st_seed=EncSeed.position
-    print(atual_st_seed)
+    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed
+    atual_st_seed=abs(EncSeed.position)
     #if have up border
-    if (last_st_seed==0 and atual_st_seed==-1): aux_i_seed=aux_i_seed+1
+    if (last_st_seed==0 and atual_st_seed==1):
+        aux_i_seed=aux_i_seed+1
     #if one up border is detectec start the time
-    if (aux_i_seed==1): time_start_seed=time.time()
+    if (aux_i_seed==1 and start_t_seed is False):
+        time_start_seed=time.time()
+        start_t_seed=True
     #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
     if (aux_i_seed==20):
         real_rot_seed= (1)/(time.time()-time_start_seed)
         aux_i_seed=0
-        
+        start_t_seed=False
     last_st_seed=atual_st_seed #update last status
-    return round(real_rot_seed,2)
+    return round(real_rot_seed,3)
 #
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
     atual_st_wheel=EncRoda.position
+   
     if (atual_st_wheel<0): time_start_wheel=time.time()
     if (atual_st_wheel<-60):
         real_rot_wheel= (2.0)/(time.time()-time_start_wheel)

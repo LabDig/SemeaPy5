@@ -69,7 +69,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.encoder_timer.timeout.connect(self.EncoderFunction)
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.log_timer.timeout.connect(self.LogFunction)
-        self.time_control=0.5 #in s
+        self.time_control=1 #in s
         self.control_timer.start(self.time_control*1000) #
         self.encoder_timer.start(10) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
@@ -294,28 +294,38 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
 ##Cal Only
 ###
     def DecSeedCal(self):
-        self.dt_seed_cal=self.dt_seed_cal-10
-        self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
-        PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
-        GPIO.output(pinEnable_Seed,GPIO.HIGH)
+        if self.cb_speed_cal.isChecked():
+            self.dt_seed_cal=self.dt_seed_cal-10
+            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
+            if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
+            elif self.dt_seed_cal>99.99:self.dt_seed_cal=99.99
+            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
+            PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
+            GPIO.output(pinEnable_Seed,GPIO.HIGH)
+            
         
     def IncSeedCal(self):
-        self.dt_seed_cal=self.dt_seed_cal+10
-        self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
-        PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
-        GPIO.output(pinEnable_Seed,GPIO.HIGH)
-
+        if self.cb_speed_cal.isChecked():
+            self.dt_seed_cal=self.dt_seed_cal+10
+            if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
+            elif self.dt_seed_cal>99.9:self.dt_seed_cal=99.99
+            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
+            PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
+            GPIO.output(pinEnable_Seed,GPIO.HIGH)
+ 
     def DecFertCal(self):
-        self.dt_fert_cal=self.dt_fert_cal-10
-        self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
-        PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
-        GPIO.output(pinEnable_Fert,GPIO.HIGH)
+        if self.cb_speed_fert.isChecked():
+            self.dt_fert_cal=self.dt_fert_cal-10
+            self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
+            PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
+            GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
     def IncFertCal(self):
-        self.dt_fert_cal=self.dt_fert_cal-10
-        self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
-        PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
-        GPIO.output(pinEnable_Fert,GPIO.HIGH)
+        if self.cb_speed_fert.isChecked():
+            self.dt_fert_cal=self.dt_fert_cal-10
+            self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
+            PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
+            GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
 ##TimeOutFunctions
     def GPSFunction(self):
@@ -330,7 +340,6 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
     def EncoderFunction(self):
         if GPIO.input(pinOnOffButton):
             self.real_rot_seed=operation.SeedSpeed()
-            print(self.real_rot_seed)
             self.speed=operation.WheelSpeed()
 
     def LogFunction(self):
@@ -392,12 +401,15 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
                 self.cb_seed_fix.setCheckState (False)
                 self.cd_seed_map.setCheckState (False)
  
-            else:
+            else:  
                 self.seed_mode="OFF"
                 self.popseed=0
+                
+
             #Calcute and Control Speed Motor
-            self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
-            operation.ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,self.rot_seed,self.real_rot_seed)
+            if self.cb_speed_cal.isChecked() is False: #if test function is not active
+                self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
+                operation.ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,self.rot_seed,self.real_rot_seed)
             #
             ####Fertilizer Distribution###
             #

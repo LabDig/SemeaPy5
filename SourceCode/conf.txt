@@ -1,7 +1,7 @@
 False
 
-True
-57500.0
+False
+0
 95
 False
 
