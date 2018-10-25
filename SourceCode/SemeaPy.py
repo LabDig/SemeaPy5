@@ -20,9 +20,12 @@ import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
 from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
 #
-#OnOff
+#Button OnOff  (Enable)
 pinOnOffButton="P8_16"
-GPIO.setup(pinOnOffButton, GPIO.IN) 
+GPIO.setup(pinOnOffButton, GPIO.IN)
+#UButton p Dynamic
+pinUpDyn="P9_15"
+GPIO.setup(pinUpDyn, GPIO.IN)
 #PWM Seed
 pinPWM_Seed="P8_13"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
@@ -60,6 +63,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.inst_opcap,self.inst_area,self.inst_time=0,0,0
         self.dt_seed_cal,self.dt_fert_cal=0,0
         self.zoom=1
+        self.last_pinUpDyn_st=False
+        self.change_popseed=False
+        self.last_popseed,self.last_fert_rt=0,0
+        self.last_wgt=0
         #timers
         self.control_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
@@ -111,6 +118,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.p_dt_seed.clicked.connect(self.IncSeedCal)
         self.m_dt_fert.clicked.connect(self.DecFertCal)
         self.p_dt_fert.clicked.connect(self.IncFertCal)
+        self.m_dyn_seed.clicked.connect(self.DecPopDyn)
+        self.p_dyn_seed.clicked.connect(self.IncPopDyn)
+        self.m_dyn_fert.clicked.connect(self.DecFertDyn)
+        self.p_dyn_fert.clicked.connect(self.IncFertDyn)
         #
         #grapghs view configuration
         self.scene=QtWidgets.QGraphicsScene()
@@ -147,7 +158,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.logfile_name=self.logfile_name.rstrip()
         self.machineID=self.machineID.rstrip()
         self.fieldID=self.fieldID.rstrip()
-        self.cd_seed_map.setCheckState ("True" in self.st_chk )
+        self.cb_seed_map.setCheckState ("True" in self.st_chk )
         self.cb_seed_fix.setCheckState ("True" in self.st_chk_2)
         self.cb_fert_map.setCheckState ("True" in self.st_chk_3)
         self.cb_fert_fix.setCheckState ("True" in self.st_chk_4)
@@ -158,8 +169,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ql_set_fert.setPlainText(str(self.fert_rt))
         self.ql_set_pop.setPlainText(str(self.popseed))
         # Reload Maps
-        self.cd_seed_map.stateChanged.connect(self.LoadSeedMap)
-        if self.cd_seed_map.isChecked():
+        self.cb_seed_map.stateChanged.connect(self.LoadSeedMap)
+        if self.cb_seed_map.isChecked():
             try: self.LoadSeedMap()
             except:
                 self.lb_status.setText("No Fert Map")
@@ -178,7 +189,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 #Main
     def Close(self): #save configuration and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
-            f.write(str(self.cd_seed_map.isChecked())+"\n")
+            f.write(str(self.cb_seed_map.isChecked())+"\n")
             f.write(self.seedfile_name+"\n")
             f.write(str(self.cb_seed_fix.isChecked())+"\n")
             f.write(str(self.popseed)+"\n")
@@ -214,7 +225,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 ##Config 01
 ###
     def LoadSeedMap(self):
-        if self.cd_seed_map.isChecked():
+        if self.cb_seed_map.isChecked():
             if ".txt" in self.seedfile_name:
                 content=None # clear variable for security
                 with open(self.seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
@@ -327,6 +338,27 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
+    def DecPopDyn(self):
+        if self.cb_dyn_seed.isChecked():
+            self.popseed=self.popseed-10000
+            self.ql_seed_dyn.setPlainText(str(self.popseed))
+
+    def IncPopDyn(self):
+        if self.cb_dyn_seed.isChecked():
+            self.popseed=self.popseed+10000
+            self.ql_seed_dyn.setPlainText(str(self.popseed))
+
+    def DecFertDyn(self):
+        if self.cb_dyn_fert.isChecked():
+            self.fert_rt=self.fert_rt-10000
+            self.ql_fert_dyn.setPlainText(str(self.fert_rt))
+
+    def IncFertDyn(self):
+        if self.cb_dyn_fert.isChecked():
+            self.fert_rt=self.fert_rt+10000
+            self.ql_fert_dyn.setPlainText(str(self.fert_rt))
+            
+            
 ##TimeOutFunctions
     def GPSFunction(self):
         if GPIO.input(pinOnOffButton):
@@ -339,7 +371,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
 
     def EncoderFunction(self):
         if GPIO.input(pinOnOffButton):
-            self.real_rot_seed=operation.SeedSpeed()
+            self.real_rot_seed=operation.SeedSpeed(self.change_popseed)
             self.speed=operation.WheelSpeed()
 
     def LogFunction(self):
@@ -382,7 +414,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             ###
             ###Seeder Distributor###
             ###
-            if self.cd_seed_map.isChecked() and len(self.lat_map_seed)>1 and self.status=='A': #Variable Seed base on map and have map and have signal gps
+            if self.cb_seed_map.isChecked() and len(self.lat_map_seed)>1 and self.status=='A': #Variable Seed base on map and have map and have signal gps
                 self.seed_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
                 self.popseed,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
@@ -397,15 +429,19 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
                     self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                     self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             
-            elif self.cb_seed_fix.isChecked() and self.cd_seed_map.isChecked(): #if two mode is checked
+            elif self.cb_seed_fix.isChecked() and self.cb_seed_map.isChecked(): #if two mode is checked
                 self.cb_seed_fix.setCheckState (False)
-                self.cd_seed_map.setCheckState (False)
+                self.cb_seed_map.setCheckState (False)
  
             else:  
                 self.seed_mode="OFF"
                 self.popseed=0
-                
-
+            #check if population change, for use in speed mean filter
+            if self.popseed!=self.last_popseed:
+                self.change_popseed=True
+            else :self.change_popseed=True
+            self.last_popseed=self.popseed
+            
             #Calcute and Control Speed Motor
             if self.cb_speed_cal.isChecked() is False: #if test function is not active
                 self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
@@ -436,9 +472,19 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             else:
                 self.fert_mode="OFF"
                 self.fert_rt=0
+
+            #check if population change
+            if self.fert_rt!=self.last_fert_rt:
+                self.change_fertrt=True
+            else :self.change_fertrt=False
+            self.last_fert_rt=self.fert_rt 
+            
             #Calcute and Control Speed Motor
             self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
-            operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.fertbys)
+            operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
+
+            #update the fertilizer wgt
+            self.last_wgt=self.fert_wgt
             #  
             #calculate operational capability and area
             self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,2)
@@ -458,6 +504,12 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.lb_status.setText("Habilitado. Fert: "+self.fert_mode+" Seed:"+self.seed_mode)
             #in Cal Tab
             self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
+            
+            # Incread Population and Fert Ratio by button for dynamic test
+            if GPIO.input(pinUpDyn) and self.last_pinUpDyn_st is False: # if bottun is pressed
+                self.IncPopDyn()
+                self.IncFertDyn()
+            self.last_pinUpDyn_st=GPIO.input(pinUpDyn)
         #
         else: # If button is off
             GPIO.output(pinEnable_Seed,GPIO.LOW)

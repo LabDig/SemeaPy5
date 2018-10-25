@@ -19,8 +19,9 @@ atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-99,-99,0,0
 atual_st_wheel,last_st_wheel,time_start_wheel=-99,-99,0
 real_rot_seed,real_rot_wheel=0,0
 lat,long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
-seed_cor=0
-weight_array=[]
+dt_seed=0
+avg_speed=0
+weight_array,seed_spped_array=[],[]
 start_t_seed=False
 #
 def Fert(v,rate,spacing):
@@ -81,8 +82,8 @@ def ReadGPS(nmea):
     except: pass
     return lat_utm,long_utm,lat,long,pdop,status
 #
-def SeedSpeed():
-    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed
+def SeedSpeed(change_duty_cicle):
+    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed
     atual_st_seed=abs(EncSeed.position)
     #if have up border
     if (last_st_seed==0 and atual_st_seed==1):
@@ -97,7 +98,13 @@ def SeedSpeed():
         aux_i_seed=0
         start_t_seed=False
     last_st_seed=atual_st_seed #update last status
-    return round(real_rot_seed,3)
+    if change_duty_cicle : seed_spped_array=[] #clear the array, for not smothing the speed variation
+    seed_spped_array=np.append(seed_spped_array,real_rot_seed)
+    # delete the first value of arry
+    if len(seed_spped_array) == 5: seed_spped_array = np.delete(seed_spped_array, 0)
+    if len(seed_spped_array)>0:
+        avg_speed=np.mean(seed_spped_array)
+    return round(avg_speed,3)
 #
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
@@ -118,20 +125,30 @@ def ReadWeight(pin,cal_a,cal_b):
     weight_array=np.append(weight_array,value)
     avg_value = np.mean(weight_array)
     # delete the first value of arry
-    if len(weight_array) == 50: weight_array = np.delete(weight_array, 0) 
+    if len(weight_array) == 5: weight_array = np.delete(weight_array, 0) 
     return round(avg_value*cal_a + cal_b ,3)
 #
-def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,rot_seed,real_rot_seed):
-    global seed_cor
-    dt=100*rot_seed#+seed_cor #experimental calibration Equation
-    if dt>100.0 : dt=100.0
-    if dt<0 : dt=0
-    PWM.set_duty_cycle(pinPWM_Seed,dt)
-    seed_cor=(rot_seed-real_rot_seed)/10 #seed_cor+
-    if dt>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
+def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot):
+    global dt_seed
+    dt_cal=100*calc_rot #experimental calibration Equation
+    dt_real=100*real_rot #
+    var_dt=dt_cal-dt_real#var dt to ajust the speed
+    dt_seed=dt_seed+var_dt #update dt
+    if dt_seed>100.0 : dt_seed=100.0
+    if dt_seed<0 : dt_seed=0
+    PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
+    if dt_seed>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
     else:GPIO.output(pinEnable_Seed,GPIO.LOW)
 #    
-def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys):
+def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_rt):
+
+    m_exit_cal=fertbys*t  #the ideal is 5 s or 5 m
+    m_exit_real=wgt-last_wgt  #fertilizer mass the real exit
+
+    if change_rt is False: #only for fert_rt constant
+        varm= m_exit_cal-m_exit_real #based in this, ajust the dt
+    else: varm=0
+    
     dt=(1300*fertbys) # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
     if dt<0 : dt=0
