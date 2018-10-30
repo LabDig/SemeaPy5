@@ -5,8 +5,8 @@ False
 95
 False
 
-False
-0
+True
+550
 0.75
 False
 f001.txt

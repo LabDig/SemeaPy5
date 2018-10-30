@@ -327,13 +327,17 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
     def DecFertCal(self):
         if self.cb_speed_fert.isChecked():
             self.dt_fert_cal=self.dt_fert_cal-10
+            if self.dt_fert_cal<0:self.dt_fert_cal=0
+            elif self.dt_fert_cal>99.99:self.dt_fert_cal=99.99
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
     def IncFertCal(self):
         if self.cb_speed_fert.isChecked():
-            self.dt_fert_cal=self.dt_fert_cal-10
+            self.dt_fert_cal=self.dt_fert_cal+10
+            if self.dt_fert_cal<0:self.dt_fert_cal=0
+            elif self.dt_fert_cal>99.99:self.dt_fert_cal=99.99
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
