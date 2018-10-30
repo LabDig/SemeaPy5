@@ -1,12 +1,12 @@
 False
 
-False
-0
+True
+0.0
 95
 False
 
-True
-550
+False
+0
 0.75
 False
 f001.txt

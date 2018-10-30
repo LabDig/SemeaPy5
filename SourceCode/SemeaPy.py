@@ -330,7 +330,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
             if self.dt_fert_cal<0:self.dt_fert_cal=0
             elif self.dt_fert_cal>99.99:self.dt_fert_cal=99.99
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
-            PWM.set_duty_cycle(pinPWM_Fert,self.dt_seed_cal)
+            PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
 
     def IncFertCal(self):
@@ -440,6 +440,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             else:  
                 self.seed_mode="OFF"
                 self.popseed=0
+
             #check if population change, for use in speed mean filter
             if self.popseed!=self.last_popseed:
                 self.change_popseed=True
@@ -484,8 +485,9 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.last_fert_rt=self.fert_rt 
             
             #Calcute and Control Speed Motor
-            self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
-            operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
+            if self.cb_speed_fert.isChecked() is False:
+                self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
+                operation.ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
 
             #update the fertilizer wgt
             self.last_wgt=self.fert_wgt
@@ -510,6 +512,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
             
             # Incread Population and Fert Ratio by button for dynamic test
+        
             if GPIO.input(pinUpDyn) and self.last_pinUpDyn_st is False: # if bottun is pressed
                 self.IncPopDyn()
                 self.IncFertDyn()
@@ -519,6 +522,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)
             self.lb_status.setText("Desabilitado")
+
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():
