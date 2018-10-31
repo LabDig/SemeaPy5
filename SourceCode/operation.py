@@ -95,6 +95,7 @@ def SeedSpeed(change_duty_cicle):
     #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
     if (aux_i_seed==20):
         real_rot_seed= (1)/(time.time()-time_start_seed)
+        print (round(real_rot_seed,3))
         aux_i_seed=0
         start_t_seed=False
     last_st_seed=atual_st_seed #update last status
