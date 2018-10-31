@@ -4,7 +4,7 @@
 import os
 import sys
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog,QMessageBox
 from PyQt5 import QtGui,QtCore
 from PyQt5.QtCore import QDateTime,Qt
 import math
@@ -24,7 +24,7 @@ from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == R
 pinOnOffButton="P8_16"
 GPIO.setup(pinOnOffButton, GPIO.IN)
 #UButton p Dynamic
-pinUpDyn="P9_15"
+pinUpDyn="P9_12"
 GPIO.setup(pinUpDyn, GPIO.IN)
 #PWM Seed
 pinPWM_Seed="P8_13"
@@ -38,7 +38,7 @@ PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 pinEnable_Fert="P8_9"
 GPIO.setup(pinEnable_Fert, GPIO.OUT)
 GPIO.output(pinEnable_Fert,GPIO.LOW)
-#Celula de Carga
+#LoadCell
 ADC.setup()
 pinLoadCell="P9_33"
 #GPS
@@ -67,6 +67,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.change_popseed=False
         self.last_popseed,self.last_fert_rt=0,0
         self.last_wgt=0
+        
         #timers
         self.control_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
@@ -77,7 +78,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.log_timer.timeout.connect(self.LogFunction)
         self.time_control=1 #in s
-        self.control_timer.start(self.time_control*1000) #
+        self.control_timer.start(self.time_control*1000) #Start Control Function
         self.encoder_timer.start(10) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
         self.log_timer.start(5000) # Start Log Function
@@ -151,6 +152,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.fieldID=f.readline()
             self.cal_a=float(f.readline())
             self.cal_b=float(f.readline())
+            self.area=float(f.readline())
+            self.time_operation=float(f.readline())
         f.close()
         #set configuration at open
         self.seedfile_name=self.seedfile_name.rstrip()
@@ -158,6 +161,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.logfile_name=self.logfile_name.rstrip()
         self.machineID=self.machineID.rstrip()
         self.fieldID=self.fieldID.rstrip()
+        self.last_fieldID=self.fieldID
         self.cb_seed_map.setCheckState ("True" in self.st_chk )
         self.cb_seed_fix.setCheckState ("True" in self.st_chk_2)
         self.cb_fert_map.setCheckState ("True" in self.st_chk_3)
@@ -182,7 +186,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             except:
                 self.lb_status.setText("No Fert Map")
                 pass
-        else: self.fertfile_name="" 
+        else: self.fertfile_name=""
+
+        ##
+        QMessageBox.about(self,"Atention","If change the field, set the new configuration")
 #####
 ####Functions
 ####
@@ -205,6 +212,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(self.fieldID+"\n")
             f.write(str(self.cal_a)+"\n")
             f.write(str(self.cal_b)+"\n")
+            f.write(str(self.area)+"\n")
+            f.write(str(self.time_operation)+"\n")
+            
+            
         f.close()
         GPIO.cleanup()
         PWM.cleanup()
@@ -283,7 +294,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.logfile_name=QFileDialog.getSaveFileName(self,"Define Logfile","","*.txt")[0]
         f=open(self.logfile_name,'w')
         f.write("Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
-Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode\n")
+Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode\n")
         f.close()
 
     def SaveCal(self):
@@ -309,7 +320,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
             self.dt_seed_cal=self.dt_seed_cal-10
             self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
             if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
-            elif self.dt_seed_cal>99.99:self.dt_seed_cal=99.99
+            elif self.dt_seed_cal>100.0:self.dt_seed_cal=100.0
             self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
             PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
             GPIO.output(pinEnable_Seed,GPIO.HIGH)
@@ -319,7 +330,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
         if self.cb_speed_cal.isChecked():
             self.dt_seed_cal=self.dt_seed_cal+10
             if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
-            elif self.dt_seed_cal>99.9:self.dt_seed_cal=99.99
+            elif self.dt_seed_cal>100.0:self.dt_seed_cal=100.0
             self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
             PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
             GPIO.output(pinEnable_Seed,GPIO.HIGH)
@@ -328,7 +339,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
         if self.cb_speed_fert.isChecked():
             self.dt_fert_cal=self.dt_fert_cal-10
             if self.dt_fert_cal<0:self.dt_fert_cal=0
-            elif self.dt_fert_cal>99.99:self.dt_fert_cal=99.99
+            elif self.dt_fert_cal>100.0:self.dt_fert_cal=100.0
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
@@ -337,7 +348,7 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
         if self.cb_speed_fert.isChecked():
             self.dt_fert_cal=self.dt_fert_cal+10
             if self.dt_fert_cal<0:self.dt_fert_cal=0
-            elif self.dt_fert_cal>99.99:self.dt_fert_cal=99.99
+            elif self.dt_fert_cal>100.0:self.dt_fert_cal=100.0
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
@@ -354,12 +365,12 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
 
     def DecFertDyn(self):
         if self.cb_dyn_fert.isChecked():
-            self.fert_rt=self.fert_rt-10000
+            self.fert_rt=self.fert_rt-100
             self.ql_fert_dyn.setPlainText(str(self.fert_rt))
 
     def IncFertDyn(self):
         if self.cb_dyn_fert.isChecked():
-            self.fert_rt=self.fert_rt+10000
+            self.fert_rt=self.fert_rt+100
             self.ql_fert_dyn.setPlainText(str(self.fert_rt))
             
             
@@ -367,7 +378,8 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
     def GPSFunction(self):
         if GPIO.input(pinOnOffButton):
             try:
-                self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
+                pass
+                #self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
             except:
                 self.ql_remote_status.setPlainText("GPS Error")
                 pass
@@ -383,8 +395,8 @@ Instantanea OpCap(ha/h),Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, F
             string="Saving in: "+str(self.logfile_name)
             self.ql_logfile.setPlainText(string)
 
-            data_string=QDateTime.currentDateTime().toString(Qt.ISODate)+","+str(self.lat_utm)+","+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+\
-str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.area)\
+            data_string=QDateTime.currentDateTime().toString(Qt.ISODate)+","+self.machineID+","+self.fieldID+str(self.lat_utm)+","+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+\
+str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+","+str(self.area)\
 +","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)+"," +str(self.seed_mode)+","+str(self.fert_mode)
             f=open(self.logfile_name,'a')
             f.write(data_string)
@@ -441,7 +453,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
                 self.seed_mode="OFF"
                 self.popseed=0
 
-            #check if population change, for use in speed mean filter
+            #check if population change, for use in seed speed mean filter
             if self.popseed!=self.last_popseed:
                 self.change_popseed=True
             else :self.change_popseed=True
@@ -478,7 +490,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
                 self.fert_mode="OFF"
                 self.fert_rt=0
 
-            #check if population change
+            #check if fertilizer ratio change
             if self.fert_rt!=self.last_fert_rt:
                 self.change_fertrt=True
             else :self.change_fertrt=False
@@ -493,12 +505,13 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.last_wgt=self.fert_wgt
             #  
             #calculate operational capability and area
-            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,2)
-            self.area=round(self.area+self.inst_area,1) #in ha
+            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,4)
+            self.area=round(self.area+self.inst_area,4) #in ha
             self.inst_time=round(self.time_control/3600.0,5)
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
-            self.opcap=round(self.area/(self.time_operation),2) # in ha/h
-            self.inst_opcap=self.inst_area/self.inst_time
+            self.opcap=round(self.area/(self.time_operation),3) # in ha/h
+            self.inst_opcap=round(self.inst_area/self.inst_time,3)
+            #
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))
             self.ql_pdop.setPlainText(str(self.pdop))
@@ -506,8 +519,20 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_fert_rt.setPlainText(str(self.fert_rt))
             self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
             self.ql_area.setPlainText(str(self.area))
-            self.ql_opcap.setPlainText("M:"+str(self.opcap)+"..I:"+str(self.inst_opcap))
-            self.lb_status.setText("Habilitado. Fert: "+self.fert_mode+" Seed:"+self.seed_mode)
+            self.ql_opcap.setPlainText(str(self.inst_opcap))
+            self.lb_status.setText("Fert: "+self.fert_mode+" Seed: "+self.seed_mode+"....Time:  "+str(self.time_operation))
+
+            # In Confi 02 Tab
+            self.machineID=self.ql_machine_id.toPlainText()
+            self.fieldID=self.ql_field_id.toPlainText()
+            if self.fieldID != self.last_fieldID: #if field change, reset area and time operation and clear configuration
+                self.area=0.0
+                self.time_operation=0.0
+                self.fertfile_name=""
+                self.seedfile_name=""
+                self.logfile_name=""
+                self.DefineLogFile()
+            self.last_fieldID=self.fieldID
             #in Cal Tab
             self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
             

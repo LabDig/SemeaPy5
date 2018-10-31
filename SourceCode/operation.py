@@ -108,13 +108,13 @@ def SeedSpeed(change_duty_cicle):
 #
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
-    atual_st_wheel=EncRoda.position
+    atual_st_wheel=abs(EncRoda.position)
    
-    if (atual_st_wheel<0): time_start_wheel=time.time()
-    if (atual_st_wheel<-60):
+    if (atual_st_wheel>1): time_start_wheel=time.time()
+    if (atual_st_wheel>60):
         real_rot_wheel= (2.0)/(time.time()-time_start_wheel)
         EncRoda.zero()
-    #for dectect if encoder its stop, 
+    #for dectect if encoder stop, 
     if (time.time()-time_start_wheel > 0.5): real_rot_wheel=0
     last_st_wheel=atual_st_wheel #update last status
     return round(real_rot_wheel,2)
@@ -135,7 +135,7 @@ def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot):
     var_dt=dt_cal-dt_real#var dt to ajust the speed
     dt_seed=dt_seed+var_dt #update dt
     if dt_seed>100.0 : dt_seed=100.0
-    if dt_seed<0 : dt_seed=0
+    if dt_seed<0.0 : dt_seed=0.0
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
     if dt_seed>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
     else:GPIO.output(pinEnable_Seed,GPIO.LOW)
@@ -151,7 +151,7 @@ def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_
     
     dt=(1300*fertbys) # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
-    if dt<0 : dt=0
+    if dt<0.0: dt=0.0
     PWM.set_duty_cycle(pinPWM_Fert,dt)
     if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
     else:GPIO.output(pinEnable_Fert,GPIO.LOW)
