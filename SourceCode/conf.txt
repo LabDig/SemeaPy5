@@ -1,7 +1,7 @@
 False
 
-False
-0
+True
+50000
 95
 False
 
@@ -9,10 +9,10 @@ False
 0
 0.75
 False
-/root/res.txt
-dd
-F01//dd
-1.0
-0.0
-0.0481
-0.9968
+/root/res051118.txt
+K01
+F01
+18.1057
+-0.3158
+0.2193
+2.18302

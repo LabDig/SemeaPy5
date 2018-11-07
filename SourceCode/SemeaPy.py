@@ -18,7 +18,7 @@ import numpy as np
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
-from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
+from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0 # 0 == Seed  
 #
 #Button OnOff  (Enable)
 pinOnOffButton="P8_16"
@@ -77,7 +77,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.encoder_timer.timeout.connect(self.EncoderFunction)
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.log_timer.timeout.connect(self.LogFunction)
-        self.time_control=1 #in s
+        self.time_control=1.0 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
         self.encoder_timer.start(10) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
@@ -124,6 +124,11 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.m_dyn_fert.clicked.connect(self.DecFertDyn)
         self.p_dyn_fert.clicked.connect(self.IncFertDyn)
         #
+        #Calc equation for seed motor
+        rot = np.array([0.2115,0.3163,0.4201,0.5118,0.6131,0.6849,0.7724])
+        duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0])
+        self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
+
         #grapghs view configuration
         self.scene=QtWidgets.QGraphicsScene()
         self.gv.scale(1,-1)
@@ -307,12 +312,14 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
         self.qd_voltage_cal.setPlainText(str(round(sum_wgt/10,5)))
 
     def Calibration(self):
-            mass = np.array([6.4,11.4,16.4,21.4])
+            mass = np.array([8.0,10.5,13.0,15.5,18.0,20.5,23.0,25.5])
+            #mass = np.array([8.0,13.0,18.0,23.0])
+            self.wgt_voltage_cal=np.array([0.4634,0.5993,0.7298,0.8726,1.0133,1.1445,1.2855,1.4321])
             try: self.cal_a,self.cal_b,r_value,p_value,std_error=stats.linregress(self.wgt_voltage_cal,mass)
             except:pass
             self.cal_a=round(self.cal_a,4)
             self.cal_b=round(self.cal_b,4)
-###
+           
 ##Cal Only
 ###
     def DecSeedCal(self):
@@ -389,6 +396,7 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
         if GPIO.input(pinOnOffButton):
             self.real_rot_seed=operation.SeedSpeed(self.change_popseed)
             self.speed=operation.WheelSpeed()
+            self.fert_wgt=operation.ReadWeight(pinLoadCell,self.cal_a,self.cal_b) #Read Fert Weight
 
     def LogFunction(self):
         if GPIO.input(pinOnOffButton):
@@ -423,7 +431,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
 
         if GPIO.input(pinOnOffButton):
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
-            self.fert_wgt=operation.ReadWeight(pinLoadCell,self.cal_a,self.cal_b) #Read Fert Weight
+            
             #Read Simulated Speed (By test only)
             if self.cb_motion_simulate.isChecked(): 
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
@@ -462,7 +470,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             #Calcute and Control Speed Motor
             if self.cb_speed_cal.isChecked() is False: #if test function is not active
                 self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
-                operation.ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,self.rot_seed,self.real_rot_seed)
+                operation.ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,self.rot_seed,self.real_rot_seed,self.cal_a_seed,self.cal_b_seed)
             #
             ####Fertilizer Distribution###
             #
@@ -520,7 +528,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
             self.ql_area.setPlainText(str(self.area))
             self.ql_opcap.setPlainText(str(self.inst_opcap))
-            self.lb_status.setText("Fert: "+self.fert_mode+" Seed: "+self.seed_mode+"....Time:  "+str(self.time_operation))
+            self.lb_status.setText('CALC...'+str(self.rot_seed)+'  REAL: '+str(self.real_rot_seed))
 
             # In Confi 02 Tab
             self.machineID=self.ql_machine_id.toPlainText()
@@ -537,9 +545,10 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
             
             # Incread Population and Fert Ratio by button for dynamic test
-        
+
             if GPIO.input(pinUpDyn) and self.last_pinUpDyn_st is False: # if bottun is pressed
                 self.IncPopDyn()
+                print ("aqui")
                 self.IncFertDyn()
             self.last_pinUpDyn_st=GPIO.input(pinUpDyn)
         #

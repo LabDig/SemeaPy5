@@ -2,26 +2,29 @@ import math
 import utm
 import time
 import numpy as np
+import random as rd
 #
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
-from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0,eQEP2 # 0 == Seed # 2 == Roda 
+from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0 #0== Seed # 
 #Encoder Velocidade Deslocamento
-#use set_freq.py in Python2 to set frequency
-EncRoda=RotaryEncoder(eQEP2)
-EncRoda.enable()
 #Encoder Dosador Semente
 EncSeed=RotaryEncoder(eQEP0)
 EncSeed.enable()
-#
-atual_st_seed,last_st_seed,aux_i_seed,time_start_seedm=-99,-99,0,0
-atual_st_wheel,last_st_wheel,time_start_wheel=-99,-99,0
-real_rot_seed,real_rot_wheel=0,0
+#Encoder Whell
+pinEncWhell="P8_11"
+GPIO.setup(pinEncWhell, GPIO.IN)
+atual_st_seed,last_st_seed,aux_i_seed,time_start_seed=-99,-99,0,0
+atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,time_reset_speed=-1,-1,0,False,0,0
+real_rot_seed,real_rot_wheel=0.0,0.0
 lat,long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
-dt_seed=0
+dt_corr=0
+sum_time=0
+st=False
 avg_speed=0
-weight_array,seed_spped_array=[],[]
+seed_spped_array=[]
+aux_reset,sum_wgt,value=0,0,0
 start_t_seed=False
 #
 def Fert(v,rate,spacing):
@@ -30,7 +33,7 @@ def Fert(v,rate,spacing):
 #
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
-    return round(3.3*seeds*v/holes,2),round(seeds,1)
+    return round(3.3*seeds*v/holes,3),round(seeds,1)
 #
 # Find the neart point in the map
 def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
@@ -83,6 +86,28 @@ def ReadGPS(nmea):
     return lat_utm,long_utm,lat,long,pdop,status
 #
 def SeedSpeed(change_duty_cicle):
+    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,\
+           time_start_seed,sum_time,st,seed_spped_array
+    atual_st_seed=abs(EncSeed.position)
+    #
+    #testar se o tempo 10 ms é suficiente
+    #
+    #if have up border
+    if (last_st_seed==0 and atual_st_seed==1):
+        if st:
+            seed_spped_array=np.append(seed_spped_array,time.time()-time_start_seed)
+            real_rot_seed=(1/20)/np.mean(seed_spped_array)
+        time_start_seed=time.time()
+        st=True #only after second border in start software
+    
+        
+    if len(seed_spped_array) == 10: seed_spped_array = np.delete(seed_spped_array, 0)
+    last_st_seed=atual_st_seed #update last status
+ 
+    return round(real_rot_seed,2)
+    
+'''
+def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed
     atual_st_seed=abs(EncSeed.position)
     #if have up border
@@ -94,53 +119,68 @@ def SeedSpeed(change_duty_cicle):
         start_t_seed=True
     #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
     if (aux_i_seed==20):
+        print (time.time()-time_start_seed)
         real_rot_seed= (1)/(time.time()-time_start_seed)
-        print (round(real_rot_seed,3))
         aux_i_seed=0
         start_t_seed=False
     last_st_seed=atual_st_seed #update last status
     if change_duty_cicle : seed_spped_array=[] #clear the array, for not smothing the speed variation
     seed_spped_array=np.append(seed_spped_array,real_rot_seed)
     # delete the first value of arry
+    
     if len(seed_spped_array) == 5: seed_spped_array = np.delete(seed_spped_array, 0)
+
     if len(seed_spped_array)>0:
         avg_speed=np.mean(seed_spped_array)
     return round(avg_speed,3)
 #
+'''
 def WheelSpeed():
-    global atual_st_wheel,last_st_wheel,real_rot_wheel,time_start_wheel
-    atual_st_wheel=abs(EncRoda.position)
-   
-    if (atual_st_wheel>1): time_start_wheel=time.time()
-    if (atual_st_wheel>60):
-        real_rot_wheel= (2.0)/(time.time()-time_start_wheel)
-        EncRoda.zero()
-    #for dectect if encoder stop, 
-    if (time.time()-time_start_wheel > 0.5): real_rot_wheel=0
-    last_st_wheel=atual_st_wheel #update last status
-    return round(real_rot_wheel,2)
+    global atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,real_rot_wheel,time_reset_speed
+    atual_st_wheel=GPIO.input(pinEncWhell)
+    #if have up border
+    if (last_st_wheel==0 and atual_st_wheel==1):
+        aux_i_wheel=aux_i_wheel+1
+        time_reset_speed=time.time()
+    #if one up border is detectec start the time
+    if (aux_i_wheel==1 and st_start_wheel is False):
+        time_start_wheel=time.time()
+        st_start_wheel=True
+    #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
+    if (aux_i_wheel==10):
+        real_rot_wheel= (1)/(time.time()-time_start_wheel)
+        aux_i_wheel=0
+        st_start_wheel=False
+    last_st_wheel=atual_st_wheel #update last statu
+    #set speed to 0, if the machine stop
+    if (time.time()-time_reset_speed>0.4): real_rot_wheel=0.0 #if speed< 0.25 m/s ==> speed=0
+    return round(real_rot_wheel,3)
 #
 def ReadWeight(pin,cal_a,cal_b):
-    global weight_array
-    value=1.8*ADC.read(pin)
-    weight_array=np.append(weight_array,value)
-    avg_value = np.mean(weight_array)
-    # delete the first value of arry
-    if len(weight_array) == 5: weight_array = np.delete(weight_array, 0) 
-    return round(avg_value*cal_a + cal_b ,3)
+    
+    global aux_reset,sum_wgt,value
+    aux_reset=aux_reset+1
+    sum_wgt=sum_wgt+1.8*ADC.read(pin)
+    if aux_reset==100:
+        value=(sum_wgt/100.0)*cal_a+cal_b
+        aux_reset=0
+        sum_wgt=0
+    return round(value,3)
 #
-def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot):
-    global dt_seed
-    dt_cal=100*calc_rot #experimental calibration Equation
-    dt_real=100*real_rot #
-    var_dt=dt_cal-dt_real#var dt to ajust the speed
-    dt_seed=dt_seed+var_dt #update dt
+def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot,a,b):
+    global dt_corr
+    dt_calc=a*calc_rot+b
+    dt_real=a*real_rot+b
+    kp=0.1
+    if (dt_calc-dt_real)>1.0:dt_corr=dt_corr+kp*(dt_calc-dt_real)
+    elif (dt_calc-dt_real)<-1.0:dt_corr=dt_corr+kp*(dt_calc-dt_real)
+    else: dt_corr=dt_corr
+    dt_seed=dt_calc#+dt_corr
     if dt_seed>100.0 : dt_seed=100.0
-    if dt_seed<0.0 : dt_seed=0.0
+    if dt_seed<40.0 : dt_seed=0.0 #because the motor dont work in low speed
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
-    if dt_seed>20: GPIO.output(pinEnable_Seed,GPIO.HIGH)  #motor dont'work in low speed
-    else:GPIO.output(pinEnable_Seed,GPIO.LOW)
-#    
+    GPIO.output(pinEnable_Seed,GPIO.HIGH)  
+     
 def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_rt):
 
     m_exit_cal=fertbys*t  #the ideal is 5 s or 5 m
