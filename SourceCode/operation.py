@@ -85,6 +85,7 @@ def ReadGPS(nmea):
     except: pass
     return lat_utm,long_utm,lat,long,pdop,status
 #
+'''
 def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,\
            time_start_seed,sum_time,st,seed_spped_array
@@ -97,16 +98,20 @@ def SeedSpeed(change_duty_cicle):
         if st:
             seed_spped_array=np.append(seed_spped_array,time.time()-time_start_seed)
             real_rot_seed=(1/20)/np.mean(seed_spped_array)
+            print (round(real_rot_seed,3))
         time_start_seed=time.time()
         st=True #only after second border in start software
     
         
-    if len(seed_spped_array) == 10: seed_spped_array = np.delete(seed_spped_array, 0)
+    if len(seed_spped_array) == 50: seed_spped_array = np.delete(seed_spped_array, 0)
     last_st_seed=atual_st_seed #update last status
  
     return round(real_rot_seed,2)
     
 '''
+
+    
+    
 def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed
     atual_st_seed=abs(EncSeed.position)
@@ -114,27 +119,19 @@ def SeedSpeed(change_duty_cicle):
     if (last_st_seed==0 and atual_st_seed==1):
         aux_i_seed=aux_i_seed+1
     #if one up border is detectec start the time
-    if (aux_i_seed==1 and start_t_seed is False):
-        time_start_seed=time.time()
-        start_t_seed=True
-    #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
-    if (aux_i_seed==20):
-        print (time.time()-time_start_seed)
-        real_rot_seed= (1)/(time.time()-time_start_seed)
-        aux_i_seed=0
-        start_t_seed=False
+        
     last_st_seed=atual_st_seed #update last status
-    if change_duty_cicle : seed_spped_array=[] #clear the array, for not smothing the speed variation
+    if change_duty_cicle :
+        seed_spped_array=[] #clear the array, for not smothing the speed variation
     seed_spped_array=np.append(seed_spped_array,real_rot_seed)
     # delete the first value of arry
     
-    if len(seed_spped_array) == 5: seed_spped_array = np.delete(seed_spped_array, 0)
+    if len(seed_spped_array) == 50: seed_spped_array = np.delete(seed_spped_array, 0)
 
     if len(seed_spped_array)>0:
         avg_speed=np.mean(seed_spped_array)
     return round(avg_speed,3)
 #
-'''
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,real_rot_wheel,time_reset_speed
     atual_st_wheel=GPIO.input(pinEncWhell)
@@ -167,19 +164,21 @@ def ReadWeight(pin,cal_a,cal_b):
         sum_wgt=0
     return round(value,3)
 #
-def ControlSpeedSeed(pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot,a,b):
+def ControlSpeedSeed(st,pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot,a,b):
     global dt_corr
-    dt_calc=a*calc_rot+b
-    dt_real=a*real_rot+b
-    kp=0.1
-    if (dt_calc-dt_real)>1.0:dt_corr=dt_corr+kp*(dt_calc-dt_real)
-    elif (dt_calc-dt_real)<-1.0:dt_corr=dt_corr+kp*(dt_calc-dt_real)
+    kp=5.0
+    if (calc_rot-real_rot)>0.01 and real_rot!=0.0:dt_corr=dt_corr+kp*(calc_rot-real_rot)
+    elif (calc_rot-real_rot)<-0.01 and  real_rot!=0.0:dt_corr=dt_corr+kp*(calc_rot-real_rot)
     else: dt_corr=dt_corr
-    dt_seed=dt_calc#+dt_corr
-    if dt_seed>100.0 : dt_seed=100.0
-    if dt_seed<40.0 : dt_seed=0.0 #because the motor dont work in low speed
+    if st: dt_corr=0
+    dt_seed=(a*calc_rot+b)+dt_corr
+    if dt_seed>100.0 :
+        dt_seed=100.0
+    if dt_seed<30.0 :
+        dt_seed=0.0 #because the motor dont work in low speed
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
-    GPIO.output(pinEnable_Seed,GPIO.HIGH)  
+    GPIO.output(pinEnable_Seed,GPIO.HIGH)
+    return dt_seed
      
 def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_rt):
 
@@ -196,3 +195,6 @@ def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_
     PWM.set_duty_cycle(pinPWM_Fert,dt)
     if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
     else:GPIO.output(pinEnable_Fert,GPIO.LOW)
+
+def Encder():
+    print ("up")
