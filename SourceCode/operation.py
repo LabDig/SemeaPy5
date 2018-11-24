@@ -7,11 +7,11 @@ import random as rd
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
-from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0 #0== Seed # 
+#from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0 #0== Seed # 
 #Encoder Velocidade Deslocamento
 #Encoder Dosador Semente
-EncSeed=RotaryEncoder(eQEP0)
-EncSeed.enable()
+#EncSeed=RotaryEncoder(eQEP0)
+#EncSeed.enable()
 #Encoder Whell
 pinEncWhell="P8_11"
 GPIO.setup(pinEncWhell, GPIO.IN)
@@ -114,7 +114,7 @@ def SeedSpeed(change_duty_cicle):
     
 def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed
-    atual_st_seed=abs(EncSeed.position)
+    atual_st_seed=0#abs(EncSeed.position)
     #if have up border
     if (last_st_seed==0 and atual_st_seed==1):
         aux_i_seed=aux_i_seed+1
