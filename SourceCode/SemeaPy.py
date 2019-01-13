@@ -1,4 +1,4 @@
-#21 de outubro
+#08 de janeiro
 # -*- coding: utf-8 -*-
 #!/usr/bin/python3
 import os
@@ -13,12 +13,12 @@ import serial
 # import python files
 from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
+import start_sim800l as sim
 from scipy import stats
 import numpy as np
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.PWM as PWM
 import Adafruit_BBIO.ADC as ADC
-from Adafruit_BBIO.Encoder import RotaryEncoder,eQEP0 # 0 == Seed  
 #
 #Button OnOff  (Enable)
 pinOnOffButton="P8_16"
@@ -26,17 +26,12 @@ GPIO.setup(pinOnOffButton, GPIO.IN)
 #UButton p Dynamic
 pinUpDyn="P9_12"
 GPIO.setup(pinUpDyn, GPIO.IN)
-
 #PWM Seed
 pinPWM_Seed="P8_13"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
-pinEnc="P9_27"
-GPIO.setup(pinEnc, GPIO.IN)
-
-
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
@@ -49,7 +44,8 @@ pinLoadCell="P9_33"
 #GPS
 gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 #3G
-sim800l = serial.Serial ("/dev/ttyS1", 4800) # P9_24 P9_26
+sim.Start3G()
+sim800l = serial.Serial("/dev/ttyS1", baudrate = 9600, timeout = 0.1) # P9_24 P9_26
 #
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
@@ -73,6 +69,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.last_popseed,self.last_fert_rt=0,0
         self.last_wgt=0
         self.dt_seed=-1
+        self.array=-1
+        self.last_dt_seed_cal=0
+        self.variation=0
+        self.hora=''
+        self.data=''
+        self.nmea=''
     
         #timers
         self.control_timer = QtCore.QTimer()
@@ -85,14 +87,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.log_timer.timeout.connect(self.LogFunction)
         self.time_control=1.0 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
-        self.encoder_timer.start(20) # Start Encoder Function
+        self.encoder_timer.start(25) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
-        self.log_timer.start(5000) # Start Log Function
+        self.log_timer.start(10000) # Start Log Function
 
         #event
         GPIO.add_event_detect(pinUpDyn,GPIO.RISING)
-        #self.aux_i_seed,self.real_rot_seed,self.time_start_seed,self.start_t_seed,self.seed_spped_array=0,0,0,False,[]
-        #GPIO.add_event_detect(pinEnc,GPIO.RISING,callback=self.Encoder,bouncetime=)
+        
         
         #buttons
         #Main
@@ -137,8 +138,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.p_dyn_fert.clicked.connect(self.IncFertDyn)
         #
         #Calc equation for seed motor
-        rot = np.array([0.1618,0.2635,0.3668,0.4650,0.5582,0.6613,0.7469,0.8243])
-        duty=np.array([30.0,40.0,50.0,60.0,70.0,80.0,90.0,100.0])
+        rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98])
+        duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0])
         self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
 
         #grapghs view configuration
@@ -211,18 +212,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 ####Functions
 ####
 #Main
-    def Encoder(self,pin):
-        self.aux_i_seed=self.aux_i_seed+1
-        print (self.aux_i_seed)
-        if (self.aux_i_seed==1 and self.start_t_seed is False):
-            self.time_start_seed=time.time()
-            self.start_t_seed=True
-        #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
-        if (self.aux_i_seed==20):
-            self.real_rot_seed= (1)/(time.time()-self.time_start_seed)
-            print(self.real_rot_seed)
-            self.aux_i_seed=0
-            self.start_t_seed=False
+    
 
     def Close(self): #save configuration and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
@@ -244,9 +234,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(str(self.cal_b)+"\n")
             f.write(str(self.area)+"\n")
             f.write(str(self.time_operation)+"\n")
-            
-            
         f.close()
+#
         GPIO.cleanup()
         PWM.cleanup()
         self.control_timer.stop()
@@ -323,7 +312,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def DefineLogFile(self):
         self.logfile_name=QFileDialog.getSaveFileName(self,"Define Logfile","","*.txt")[0]
         f=open(self.logfile_name,'w')
-        f.write("Data/Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
+        f.write("Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),PDOP,GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
 Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode\n")
         f.close()
 
@@ -409,43 +398,54 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
 ##TimeOutFunctions
     def GPSFunction(self):
         if GPIO.input(pinOnOffButton):
-            try:
-                pass
-                #self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status=operation.ReadGPS(gps.readline())
-            except:
-                self.ql_remote_status.setPlainText("GPS Error")
-                pass
+            while ('$GPRMC' in self.nmea) is False : 
+                self.nmea=gps.readline()
+                try:self.nmea=self.nmea.decode('utf-8')
+                except:
+                    self.nmea=gps.readline()
+                    self.nmea=self.nmea.decode('utf-8')
+            self.data,self.hora,self.lat_utm,self.long_utm,self.lat,self.long,self.status=operation.ReadGPS(self.nmea)
+            self.nmea=''
                 
-
+    
     def EncoderFunction(self):
         if GPIO.input(pinOnOffButton):
-            self.real_rot_seed=operation.SeedSpeed(self.change_popseed)
-            self.speed=operation.WheelSpeed()
+            self.real_rot_seed,self.array,self.variation=operation.SeedSpeed(self.change_popseed)
+            if self.cb_motion_simulate.isChecked() is False: self.speed=operation.WheelSpeed() #only if simulated motion is off
             self.fert_wgt=operation.ReadWeight(pinLoadCell,self.cal_a,self.cal_b) #Read Fert Weight
 
     def LogFunction(self):
         if GPIO.input(pinOnOffButton):
             string="Saving in: "+str(self.logfile_name)
             self.ql_logfile.setPlainText(string)
-
-            data_string=QDateTime.currentDateTime().toString(Qt.ISODate)+","+self.machineID+","+self.fieldID+str(self.lat_utm)+","+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+\
-str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+","+str(self.area)\
-+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)+"," +str(self.seed_mode)+","+str(self.fert_mode)
+            data_string=self.data+','+self.hora+","+self.machineID+","+self.fieldID+","+str(self.lat_utm)+","+\
+str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ \
+str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+\
+","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)\
++"," +str(self.seed_mode)+","+str(self.fert_mode)
             f=open(self.logfile_name,'a')
             f.write(data_string)
             f.write("\n")
             f.close()
-
             #Remote
             if self.cb_remote.isChecked():
-                self.ql_remote_status.setPlainText("Enable")
-                try:
-                    sim800l.write ('AT+HTTPPARA="URL","http://'+'\r\n');
-                    sim800l.write('AT+HTTPACTION=0'+'\r\n');
-                    sim800l.write('AT+HTTPREAD'+'\r\n');
-                except:
-                    self.ql_remote_status.setPlainText("3G Error")
-                    pass
+                #sim800l.write(str.encode('AT+HTTPPARA=\"URL\",\"http://andrecoelho.tech/envia_mysql_hostinger.php?MachineID=K02&FieldID=F01&Lati=0.0&Longi=0.0&XUtm=0.0&YUtm=0.0&Speed=11.1&OpCap=0.0&TimeOperation=0.0&Population=0&FertRatio=0&FertLevel=1&Area=1"'+'\r'));
+                link='http://andrecoelho.tech/envia_mysql_hostinger.php?MachineID='+self.machineID\
++'&FieldID='+self.fieldID+'&Lati='+str(self.lat)+'&Longi='+str(self.long)+'&XUtm='+str(self.lat_utm)+'&YUtm='+str(self.long_utm)+'&Speed='+\
+str(self.speed)+'&OpCap='+str(self.opcap)+'&TimeOperation='+str(self.time_operation)+'&Population='+str(self.popseed)+'&FertRatio='+\
+str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
+                sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+'\r'))
+                time.sleep(1)
+                sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
+                time.sleep(1)
+                sim800l.write(str.encode('AT+HTTPREAD'+'\r'))
+                time.sleep(1)
+                #a=sim800l.readall()
+                #a=a.decode('utf-8')
+                #a=a.split('\n')
+                #for i in a:print (a)
+                #self.ql_remote_status.setPlainText(a.decode("utf-8"))
+                
             else:
                 self.ql_remote_status.setPlainText("Disable")
         else:
@@ -453,9 +453,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
 ###
 ###
     def ControlFunction(self):  
-
         if GPIO.input(pinOnOffButton):
-
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
             #Read Simulated Speed (By test only)
             if self.cb_motion_simulate.isChecked(): 
@@ -487,10 +485,11 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
                 self.popseed=0
 
             #check if population change, for use in seed speed mean filter
-            if self.popseed!=self.last_popseed:
+            if self.popseed!=self.last_popseed or self.dt_seed_cal!=self.last_dt_seed_cal:
                 self.change_popseed=True
             else :self.change_popseed=False
             self.last_popseed=self.popseed
+            self.last_dt_seed_cal=self.dt_seed_cal
             
             #Calcute and Control Speed Motor
             if self.cb_speed_cal.isChecked() is False: #if test function is not active
@@ -555,7 +554,7 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
             self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
             self.ql_area.setPlainText(str(self.area))
             self.ql_opcap.setPlainText(str(self.inst_opcap))
-            self.lb_status.setText('CALC...'+str(self.rot_seed)+'  REAL: '+str(self.real_rot_seed))
+            self.lb_status.setText('CALC...'+str(self.rot_seed)+'  REAL: '+str(self.real_rot_seed)+'...'+self.hora)
 
             # In Confi 02 Tab
             self.machineID=self.ql_machine_id.toPlainText()
@@ -584,8 +583,9 @@ str(self.speed)+","+str(self.pdop)+","+str(self.status)+","+ str(self.popseed)+"
 
             #save file for manual calibrations
             '''
-            f=open("cal_0811_seed",'a')
+            f=open("cal_190110_seed_final3.txt",'a')
             f.write(str( self.dt_seed_cal)+","+str(self.real_rot_seed)+"\n")
+            #print (self.dt_seed_cal,self.real_rot_seed)
             f.close()
             '''
             

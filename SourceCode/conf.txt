@@ -1,18 +1,18 @@
-False
-
 True
-35000.0
+/root/SemeaPy5/SourceCode/for_map_test.txt
+False
+40000.0
 95
 False
 
-True
-340.0
+False
+0
 0.75
 False
-/root/res051118.txt
+/root/res.txt
 K01
 F01
 18.1057
 -0.3158
-0.4261
-4.27014
+1.1815
+9.70074
