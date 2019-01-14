@@ -2,7 +2,6 @@ import math
 import utm
 import time
 import numpy as np
-#
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
@@ -72,11 +71,11 @@ def ReadGPS(nmea):
     return data,hora,lat_utm,long_utm,lat,long,status
 # Calculate the Seed Speed using the encoder
 seed_spped_array,avg_speed,real_rot_seed,atual_st_seed,last_st_seed,\
-aux_i_seed,time_start_seed,st_start_seed,n_del=[],0,0,-99,-99,0,0,False,0 # Global variablesSeed Speed
+aux_i_seed,time_start_seed,st_start_seed=[],0,0,-99,-99,0,0,False # Global variablesSeed Speed
 def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed,st_start_seed,last_rot
     global variation,n_del
-    atual_st_seed=0#GPIO.input(pinEncSeed)#abs(EncSeed.position)
+    atual_st_seed=GPIO.input(pinEncSeed)#abs(EncSeed.position)
     #if have up border
     if (last_st_seed==0 and atual_st_seed==1):
         aux_i_seed=aux_i_seed+1
@@ -95,13 +94,7 @@ def SeedSpeed(change_duty_cicle):
         seed_spped_array=[]
         aux_i_seed=0
         st_start_seed=False
-    if len(seed_spped_array)==5:seed_spped_array=np.delete(seed_spped_array,0)
-    if len(seed_spped_array)>3 : #r# filter outlier# filter outlier
-        variation=seed_spped_array[-1]/seed_spped_array[-2]
-        if variation<0.9 or variation>1.10 and n_del<3:
-            seed_spped_array=np.delete(seed_spped_array,-1)
-            n_del=n_del+1
-    if n_del>2:n_del=0
+    if len(seed_spped_array)==10:seed_spped_array=np.delete(seed_spped_array,0)
     if len (seed_spped_array)>0: avg_speed=np.mean(seed_spped_array)
     return round(avg_speed,2)
 #
@@ -110,7 +103,7 @@ real_rot_wheel,atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,\
 aux_i_wheel,time_reset_speed=0,-1,-1,0,False,0,0 #global variables
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,real_rot_wheel,time_reset_speed
-    atual_st_wheel=1#GPIO.input(pinEncWhell)
+    atual_st_wheel=GPIO.input(pinEncWhell)
     #if have up border
     if (last_st_wheel==0 and atual_st_wheel==1):
         aux_i_wheel=aux_i_wheel+1
@@ -133,7 +126,7 @@ aux_reset,sum_wgt,value=0,0,0 #global variables
 def ReadWeight(cal_a,cal_b):
     global aux_reset,sum_wgt,value
     aux_reset=aux_reset+1
-    sum_wgt=sum_wgt+1.8*0#ADC.read(pin)
+    sum_wgt=sum_wgt+1.8*ADC.read(pinLoadCell)
     if aux_reset==100:
         value=(sum_wgt/100.0)*cal_a+cal_b
         aux_reset=0
@@ -143,11 +136,13 @@ def ReadWeight(cal_a,cal_b):
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
-    kp=0.25
-    if (calc_rot-real_rot)>0.2 and real_rot!=0.0:dt_corr=dt_corr+kp*(calc_rot-real_rot)
-    elif (calc_rot-real_rot)<-0.2 and  real_rot!=0.0:dt_corr=dt_corr+kp*(calc_rot-real_rot)
+    kp=1.0
+    if (calc_rot-real_rot)>0.025 and real_rot!=0.0:
+        dt_corr=dt_corr+kp*(calc_rot-real_rot)
+    elif (calc_rot-real_rot)<-0.025 and  real_rot!=0.0:
+        dt_corr=dt_corr+kp*(calc_rot-real_rot)
     else: dt_corr=dt_corr
-    if st: dt_corr=0
+    if st is True: dt_corr=0
     dt_seed=(a*calc_rot+b)+dt_corr
     if dt_seed>100.0 :
         dt_seed=100.0

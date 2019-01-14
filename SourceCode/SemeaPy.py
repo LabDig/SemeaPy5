@@ -4,7 +4,7 @@
 import os
 import sys
 from PyQt5 import QtWidgets
-from PyQt5.QtWidgets import QFileDialog,QMessageBox
+from PyQt5.QtWidgets import QFileDialog
 from PyQt5 import QtGui,QtCore
 import time
 from scipy import stats
@@ -37,7 +37,6 @@ GPIO.setup(pinEnable_Fert, GPIO.OUT)
 GPIO.output(pinEnable_Fert,GPIO.LOW)
 #LoadCell
 ADC.setup()
-
 pinLoadCell="P9_33"
 #GPS
 gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
@@ -186,8 +185,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         if self.cb_fert_map.isChecked():
            self.LoadFertMap()
         else: self.fertfile_name=""
-        #Mensagem for change configuration, if the field change
-        QMessageBox.about(self,"Atention","If change the field, set the new configuration")
 ####
 #Functions
 # Im main Tab
@@ -294,7 +291,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def DefineID(self): # Define the Machine ID, Field ID and the logfilename
         self.machineID='M-'+str(self.n_machine_id)
         self.fieldID='F-'+str(self.n_field_id)
-        self.logfile_name=self.machineID+'_'+self.fielID+'.txt'
+        self.logfile_name=self.machineID+'_'+self.fieldID+'.txt'
         f=open(self.logfile_name,'w') #Creat the logfile with header
         f.write("Data,Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
 Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode\n")
@@ -308,7 +305,7 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
     def SaveCal(self): #Save the point for calibration.
         sum_wgt=0 #Read 20 values for voltage, calculate the mean, show in Line Edit and save in array
         for i in range(0,20):
-            value=1#round(1.8*ADC.read(pinLoadCell),2)
+            value=round(1.8*ADC.read(pinLoadCell),2)
             sum_wgt=sum_wgt+value
             time.sleep(0.5)
         self.wgt_voltage_cal[self.list_cal_wgt.currentIndex()]=round(sum_wgt/20,5)
@@ -377,10 +374,10 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
     def GPSFunction(self): #GPS Function - Try until read GPRM NMEA Sentece
         if GPIO.input(pinOnOffButton):
             while ('$GPRMC' in self.nmea) is False : 
-                self.nmea=''#gps.readline()
+                self.nmea=gps.readline()
                 try:self.nmea=self.nmea.decode('utf-8')
                 except:
-                    self.nmea=''#gps.readline()
+                    self.nmea=gps.readline()
                     self.nmea=self.nmea.decode('utf-8')
             self.data,self.hora,self.lat_utm,self.long_utm,self.lat,self.long,self.status=operation.ReadGPS(self.nmea)
             self.nmea=''
@@ -445,6 +442,7 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
                 self.cb_seed_map.setCheckState (False)
             else:  
                 self.seed_mode="OFF"
+                self.popseed=0
             #check if population change or duty cicle change ==> for use in Encoder Function
             if self.popseed!=self.last_popseed or self.dt_seed_cal!=self.last_dt_seed_cal:
                 self.change_popseed=True
@@ -475,6 +473,7 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
                 self.cb_fert_map.setCheckState (False)
             else:
                 self.fert_mode="OFF"
+                self.fert_rt=0
             #check if fertilizer ratio change ==> for use in dynamic calibration
             if self.fert_rt!=self.last_fert_rt:
                 self.change_fertrt=True
