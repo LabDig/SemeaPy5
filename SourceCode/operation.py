@@ -2,7 +2,6 @@ import math
 import utm
 import time
 import numpy as np
-import random as rd
 #
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
@@ -11,30 +10,20 @@ pinEncWhell="P8_11"
 GPIO.setup(pinEncWhell, GPIO.IN)
 pinEncSeed="P9_29"
 GPIO.setup(pinEncSeed, GPIO.IN)
-
-atual_st_seed,last_st_seed,aux_i_seed,time_start_seed=-99,-99,0,0
-atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,time_reset_speed=-1,-1,0,False,0,0
-real_rot_seed,real_rot_wheel=0.0,0.0
-lat,long,lat_utm,long_utm,pdop,status=0,0,0,0,0,0
-last_rot=0
-dt_corr=0
-sum_time=0
-st=False
-avg_speed=0
-seed_spped_array=[]
-aux_reset,sum_wgt,value=0,0,0
-st_start_seed=False
-hora,data='',''
-#
+pinLoadCell="P9_33"
+pinPWM_Seed="P8_13"
+pinEnable_Seed="P8_10"
+pinPWM_Fert="P8_19"
+pinEnable_Fert="P8_9"
+# Calc Fert Ratio
 def Fert(v,rate,spacing):
     fertybym=rate*spacing/10000.0
     return round(fertybym,3),round(fertybym*v,3)
-#
+#Calc Seed Ratio
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
     return round(3.3*seeds*v/holes,2),round(seeds,1)
-#
-# Find the neart point in the map
+# Find the neart point in the map (for fert and seed)
 def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
     minDist=9999999
     k=len(x_map)
@@ -46,7 +35,7 @@ def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
             minDist=distance
             idminDist=i
     return pop_map[idminDist],x_map[idminDist],y_map[idminDist]
-#
+# Read the map file (seed and fert)
 def ReadMapFile(data):
     x,y,z=[],[],[]
     for i in range(1,len(data)-1):
@@ -55,7 +44,8 @@ def ReadMapFile(data):
             y.append(float(Row[1]))
             z.append(float(Row[2]))
     return x,y,z
-#
+# Split the gprm nmea sente
+lat,long,lat_utm,long_utm,status,data,hora=0,0,0,0,'','','' #global variables for gps
 def ReadGPS(nmea):
     global lat,long,lat_utm,long_utm,data,status,hora,data
     try:
@@ -80,15 +70,13 @@ def ReadGPS(nmea):
             lat,long,lat_utm,long_utm,data,hora=0,0,0,0,'',''
     except: pass
     return data,hora,lat_utm,long_utm,lat,long,status
-#
-
-    
-variation=0
-n_del=0
+# Calculate the Seed Speed using the encoder
+seed_spped_array,avg_speed,real_rot_seed,atual_st_seed,last_st_seed,\
+aux_i_seed,time_start_seed,st_start_seed,n_del=[],0,0,-99,-99,0,0,False,0 # Global variablesSeed Speed
 def SeedSpeed(change_duty_cicle):
     global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed,st_start_seed,last_rot
     global variation,n_del
-    atual_st_seed=GPIO.input(pinEncSeed)#abs(EncSeed.position)
+    atual_st_seed=0#GPIO.input(pinEncSeed)#abs(EncSeed.position)
     #if have up border
     if (last_st_seed==0 and atual_st_seed==1):
         aux_i_seed=aux_i_seed+1
@@ -113,16 +101,16 @@ def SeedSpeed(change_duty_cicle):
         if variation<0.9 or variation>1.10 and n_del<3:
             seed_spped_array=np.delete(seed_spped_array,-1)
             n_del=n_del+1
-            #print ("del")
     if n_del>2:n_del=0
     if len (seed_spped_array)>0: avg_speed=np.mean(seed_spped_array)
-    return round(avg_speed,2),seed_spped_array,variation
-    
-    
+    return round(avg_speed,2)
 #
+# Calculate the machine Speed using the encoder
+real_rot_wheel,atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,\
+aux_i_wheel,time_reset_speed=0,-1,-1,0,False,0,0 #global variables
 def WheelSpeed():
     global atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,real_rot_wheel,time_reset_speed
-    atual_st_wheel=GPIO.input(pinEncWhell)
+    atual_st_wheel=1#GPIO.input(pinEncWhell)
     #if have up border
     if (last_st_wheel==0 and atual_st_wheel==1):
         aux_i_wheel=aux_i_wheel+1
@@ -140,19 +128,20 @@ def WheelSpeed():
     #set speed to 0, if the machine stop
     if (time.time()-time_reset_speed>0.4): real_rot_wheel=0.0 #if speed< 0.25 m/s ==> speed=0
     return round(real_rot_wheel,3)
-#
-def ReadWeight(pin,cal_a,cal_b):
-    
+# Read the weigth of fert tank
+aux_reset,sum_wgt,value=0,0,0 #global variables
+def ReadWeight(cal_a,cal_b):
     global aux_reset,sum_wgt,value
     aux_reset=aux_reset+1
-    sum_wgt=sum_wgt+1.8*ADC.read(pin)
+    sum_wgt=sum_wgt+1.8*0#ADC.read(pin)
     if aux_reset==100:
         value=(sum_wgt/100.0)*cal_a+cal_b
         aux_reset=0
         sum_wgt=0
     return round(value,3)
-#
-def ControlSpeedSeed(st,pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot,a,b):
+# Control the seed speed
+dt_corr=0 #global variable
+def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
     kp=0.25
     if (calc_rot-real_rot)>0.2 and real_rot!=0.0:dt_corr=dt_corr+kp*(calc_rot-real_rot)
@@ -167,22 +156,16 @@ def ControlSpeedSeed(st,pinEnable_Seed,pinPWM_Seed,calc_rot,real_rot,a,b):
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     return dt_seed
-     
-def ControlSpeedFert(pinEnable_Fert,pinPWM_Fert,fertbys,wgt,last_wgt,v,t,change_rt):
-
+# Control the seed speed     
+def ControlSpeedFert(fertbys,wgt,last_wgt,v,t,change_rt):
     m_exit_cal=fertbys*t  #the ideal is 5 s or 5 m
     m_exit_real=wgt-last_wgt  #fertilizer mass the real exit
-
     if change_rt is False: #only for fert_rt constant
         varm= m_exit_cal-m_exit_real #based in this, ajust the dt
     else: varm=0
-    
     dt=(1300*fertbys) # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
     if dt<0.0: dt=0.0
     PWM.set_duty_cycle(pinPWM_Fert,dt)
     if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
     else:GPIO.output(pinEnable_Fert,GPIO.LOW)
-
-def Encder():
-    print ("up")
