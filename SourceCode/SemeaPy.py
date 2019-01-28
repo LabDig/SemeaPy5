@@ -70,7 +70,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.rot_seed,self.real_rot_seed=0.0,0.0 #seed speed
         self.wgt_voltage_cal=np.zeros(4) #calibrate load cell
         self.dt_seed_cal,self.dt_fert_cal=0,0 #variables for test 
-        self.last_pinUpDyn_st,self.change_popseed=False,False #variables for dynamic test and check if population changet
+        self.change_popseed=False #variables for dynamic test and check if population changet
         self.last_popseed,self.last_fert_rt=0,0 #for ckeck if population and fert ratio change
         self.last_wgt,self.dt_seed,self.last_dt_seed_cal=0,-1,-1  #for ckeck if population and fert ratio change
         self.n_machine_id,self.n_field_id=1,1 #number auxiliar for setting machine and field id
@@ -185,6 +185,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         if self.cb_fert_map.isChecked():
            self.LoadFertMap()
         else: self.fertfile_name=""
+        #Event Detect Dynamic Test Button
+        GPIO.add_event_detect(channel,GPIO.RISING,callback=self.IncPopFert,bouncetime=100)
 ####
 #Functions
 # Im main Tab
@@ -353,21 +355,15 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
-# Incread and Decrease Population and Fert Ratio for a Dynamic Test           
-    def DecPopDyn(self):
-        if self.cb_dyn_seed.isChecked():
-            self.popseed=self.popseed-10000
-            self.ql_seed_dyn.setPlainText(str(self.popseed))
-    def IncPopDyn(self):
+# Incread and Decrease Population and Fert Ratio for a Dynamic Test
+    def self.IncPopFert(self):
         if self.cb_dyn_seed.isChecked():
             self.popseed=self.popseed+10000
+            if self.popseed==80000:self.popseed=0
             self.ql_seed_dyn.setPlainText(str(self.popseed))
-    def DecFertDyn(self):
-        if self.cb_dyn_fert.isChecked():
-            self.fert_rt=self.fert_rt-100
-    def IncFertDyn(self):
         if self.cb_dyn_fert.isChecked():
             self.fert_rt=self.fert_rt+100
+            if self.fert_rt==500:self.fert_rt=0
 #
 # Functions of the timers (timeouts)            
 #

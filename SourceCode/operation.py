@@ -98,7 +98,7 @@ def SeedSpeed(change_duty_cicle):
     if len (seed_spped_array)>0: avg_speed=np.mean(seed_spped_array)
     return round(avg_speed,2)
 #
-# Calculate the machine Speed using the encoder
+# Calculate the machine spped using the encoder
 real_rot_wheel,atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,\
 aux_i_wheel,time_reset_speed=0,-1,-1,0,False,0,0 #global variables
 def WheelSpeed():
@@ -108,19 +108,21 @@ def WheelSpeed():
     if (last_st_wheel==0 and atual_st_wheel==1):
         aux_i_wheel=aux_i_wheel+1
         time_reset_speed=time.time()
+        print (aux_i_wheel)
+
     #if one up border is detectec start the time
     if (aux_i_wheel==1 and st_start_wheel is False):
         time_start_wheel=time.time()
         st_start_wheel=True
-    #at complete 20 up border, calculate the velocity (one revolution is 20 up border)
+    #at complete 2 up border, calculate the velocity (one revolution is 4 up border), and 1 revolution is 2.0 m
     if (aux_i_wheel==10):
         real_rot_wheel= (1)/(time.time()-time_start_wheel)
         aux_i_wheel=0
         st_start_wheel=False
     last_st_wheel=atual_st_wheel #update last statu
     #set speed to 0, if the machine stop
-    if (time.time()-time_reset_speed>0.4): real_rot_wheel=0.0 #if speed< 0.25 m/s ==> speed=0
-    return round(real_rot_wheel,3)
+    if (time.time()-time_reset_speed>1.0): real_rot_wheel=0.0 #if speed< 0.25 m/s ==> speed=0
+    return round(real_rot_wheel,2)
 # Read the weigth of fert tank
 aux_reset,sum_wgt,value=0,0,0 #global variables
 def ReadWeight(cal_a,cal_b):
@@ -131,7 +133,7 @@ def ReadWeight(cal_a,cal_b):
         value=(sum_wgt/100.0)*cal_a+cal_b
         aux_reset=0
         sum_wgt=0
-    return round(value,3)
+    return round(value,1)
 # Control the seed speed
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):

@@ -1,6 +1,5 @@
 import Adafruit_BBIO.GPIO as GPIO
 import time
-import random
 channel="P9_12"
 GPIO.setup(channel,GPIO.IN)
 i=0
@@ -8,9 +7,11 @@ i=0
 def my_call(channel):
     print ("up")
 
+GPIO.add_event_detect(channel,GPIO.RISING,callback=my_call,bouncetime=100)
 
-GPIO.add_event_detect(channel,GPIO.RISING,callback=my_call)
-
+while True:
+    print ('...')
+    time.sleep(1)
 '''
 GPIO.setup(pinOnOffButton,GPIO.IN)
 
