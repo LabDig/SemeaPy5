@@ -41,24 +41,13 @@ pinLoadCell="P9_33"
 #GPS
 gps = serial.Serial ("/dev/ttyS4", 9600) # P9_11 P9_13
 #3G Monitoring 
-sim800l = serial.Serial("/dev/ttyS1", baudrate = 9600, timeout = 0.1) # P9_24 P9_26
-sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
-time.sleep(0.1)
-sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
-time.sleep(0.1)
-sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
-time.sleep(0.1)
-sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
-time.sleep(0.1)
-sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
-time.sleep(0.1)
-sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
-time.sleep(0.1)
+sim800l = serial.Serial("/dev/ttyS1", baudrate = 9600, timeout = 0.05) # P9_24 P9_26
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
+        self.StartGSM() #Start Internet
         #global variables declaration
         self.speed,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,'',0.0,0.0,0.0,0.0,0.0 #operation variables
         self.inst_opcap,self.inst_area,self.inst_time=0,0,0 #operation variables
@@ -87,7 +76,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.control_timer.start(self.time_control*1000) #Start Control Function
         self.encoder_timer.start(25) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
-        self.log_timer.start(10000) # Start Log Function
+        self.log_timer.start(5000) # Start Log Function
         #GUI Buttons Configuration
         #Main
         self.exit.clicked.connect(self.Close)  #exit button
@@ -127,10 +116,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.p_dt_seed.clicked.connect(self.IncSeedCal)  # values for variavel operations
         self.m_dt_fert.clicked.connect(self.DecFertCal) 
         self.p_dt_fert.clicked.connect(self.IncFertCal)
-        self.m_dyn_seed.clicked.connect(self.DecPopDyn)
-        self.p_dyn_seed.clicked.connect(self.IncPopDyn)
-        self.m_dyn_fert.clicked.connect(self.DecFertDyn)
-        self.p_dyn_fert.clicked.connect(self.IncFertDyn)
+        #deletar da interface e reorganizar
+
+        # corrigir dynamico
+        #self.m_dyn_seed.clicked.connect(lambda self.popseed:self.popseed-10000)
+        #self.p_dyn_seed.clicked.connect(lambda :self.popseed=self.popseed+10000)
+        #self.m_dyn_fert.clicked.connect(lambda :self.fert_rt=self.fert_rt-50)
+        #self.p_dyn_fert.clicked.connect(lambda :self.fert_rt=self.fert_rt+50)
         #
         #Calcule calibration equation for seed motor
         rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
@@ -186,10 +178,24 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
            self.LoadFertMap()
         else: self.fertfile_name=""
         #Event Detect Dynamic Test Button
-        GPIO.add_event_detect(channel,GPIO.RISING,callback=self.IncPopFert,bouncetime=100)
+        GPIO.add_event_detect(pinUpDyn,GPIO.RISING,callback=self.IncPopFert,bouncetime=100)
 ####
 #Functions
 # Im main Tab
+
+    def StartGSM(self): #start Internet Service of GSM Module
+        sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
+        time.sleep(0.05)
+        sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
+        time.sleep(0.05)
+        sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
+        time.sleep(0.05)
+        sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
+        time.sleep(0.05)
+        sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
+        time.sleep(0.05)
+        sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
+        time.sleep(0.05)
     def Close(self): #save configuration inf file, clear GPIO, stop timer and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
             f.write(str(self.cb_seed_map.isChecked())+"\n")
@@ -356,14 +362,16 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
-    def self.IncPopFert(self):
+    def IncPopFert(self,pinUpDyn):
         if self.cb_dyn_seed.isChecked():
             self.popseed=self.popseed+10000
-            if self.popseed==80000:self.popseed=0
-            self.ql_seed_dyn.setPlainText(str(self.popseed))
+            if self.popseed>80000:self.popseed=0
+            print (self.popseed)
         if self.cb_dyn_fert.isChecked():
             self.fert_rt=self.fert_rt+100
-            if self.fert_rt==500:self.fert_rt=0
+            if self.fert_rt>500:self.fert_rt=0
+            print (self.fert_rt)
+
 #
 # Functions of the timers (timeouts)            
 #
@@ -404,12 +412,16 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
 str(self.speed)+'&OpCap='+str(self.opcap)+'&TimeOperation='+str(self.time_operation)+'&Population='+str(self.popseed)+'&FertRatio='+\
 str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
                 sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+'\r'))
-                time.sleep(1)
+                time.sleep(0.5)
                 sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
-                time.sleep(1)
+                time.sleep(0.5)
                 sim800l.write(str.encode('AT+HTTPREAD'+'\r'))
-                time.sleep(1)
-                self.ql_remote_status.setPlainText("Saving")
+                time.sleep(0.5)
+                a=sim800l.readall()
+                a=a.decode('utf-8')
+                a=a.split("\r\n")
+                for i in range (len(a)):
+                    if '+HTTPACTION:' in a[i]:self.ql_remote_status.setPlainText(a[i])
             else:
                 self.ql_remote_status.setPlainText("Disable")
         else:

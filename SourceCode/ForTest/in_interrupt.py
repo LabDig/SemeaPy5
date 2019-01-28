@@ -11,7 +11,7 @@ GPIO.add_event_detect(channel,GPIO.RISING,callback=my_call,bouncetime=100)
 
 while True:
     print ('...')
-    time.sleep(1)
+    time.sleep(2)
 '''
 GPIO.setup(pinOnOffButton,GPIO.IN)
 
