@@ -29,6 +29,8 @@ PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
+pinEncSeed="P9_29"
+GPIO.setup(pinEncSeed, GPIO.IN)
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
@@ -63,6 +65,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.last_popseed,self.last_fert_rt=0,0 #for ckeck if population and fert ratio change
         self.last_wgt,self.dt_seed,self.last_dt_seed_cal=0,-1,-1  #for ckeck if population and fert ratio change
         self.n_machine_id,self.n_field_id=1,1 #number auxiliar for setting machine and field id
+        self.lat_used,self.long_used=0,0 #lat e long used in Map aplication
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
@@ -72,11 +75,11 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.encoder_timer.timeout.connect(self.EncoderFunction)
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.log_timer.timeout.connect(self.LogFunction)
-        self.time_control=1.0 #in s
+        self.time_control=0.25 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
         self.encoder_timer.start(25) # Start Encoder Function
         self.gps_timer.start(2500) # Start GPS Function
-        self.log_timer.start(5000) # Start Log Function
+        self.log_timer.start(10000) # Start Log Function
         #GUI Buttons Configuration
         #Main
         self.exit.clicked.connect(self.Close)  #exit button
@@ -116,14 +119,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.p_dt_seed.clicked.connect(self.IncSeedCal)  # values for variavel operations
         self.m_dt_fert.clicked.connect(self.DecFertCal) 
         self.p_dt_fert.clicked.connect(self.IncFertCal)
-        #deletar da interface e reorganizar
-
-        # corrigir dynamico
-        #self.m_dyn_seed.clicked.connect(lambda self.popseed:self.popseed-10000)
-        #self.p_dyn_seed.clicked.connect(lambda :self.popseed=self.popseed+10000)
-        #self.m_dyn_fert.clicked.connect(lambda :self.fert_rt=self.fert_rt-50)
-        #self.p_dyn_fert.clicked.connect(lambda :self.fert_rt=self.fert_rt+50)
-        #
         #Calcule calibration equation for seed motor
         rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
         duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0]) # duty cicle for PWM
@@ -179,9 +174,27 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         else: self.fertfile_name=""
         #Event Detect Dynamic Test Button
         GPIO.add_event_detect(pinUpDyn,GPIO.RISING,callback=self.IncPopFert,bouncetime=100)
+        #Seed Speed Encoder
+        self.seed_pulse=0
+        self.time_start_seed=0
+        self.seed_speed_filter=[]
+        GPIO.add_event_detect(pinEncSeed,GPIO.RISING,callback=self.SeedSpeed,bouncetime=100)
+        
 ####
 #Functions
 # Im main Tab
+    def SeedSpeed(self,pinEncSeed):
+        self.seed_pulse=self.seed_pulse+1
+        if self.seed_pulse==1:self.time_start_seed=time.time()
+        if self.seed_pulse==2: # quarter of revolution
+            self.seed_speed_filter=np.append(self.seed_speed_filter,round((0.25)/(time.time()-self.time_start_seed),2))
+            self.seed_pulse=0
+        if self.change_popseed :
+            self.seed_pulse==0 #reset if change duty cicle
+            self.seed_speed_filter=[]
+            self.real_rot_seed=0 #set speed to until new calcution. Necessary to control speed don't use old speed
+        if len(self.seed_speed_filter)==10:self.seed_speed_filter=np.delete(self.seed_speed_filter,0)
+        if len(self.seed_speed_filter)>0: self.real_rot_seed=round(np.mean(self.seed_speed_filter),2)
 
     def StartGSM(self): #start Internet Service of GSM Module
         sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
@@ -326,6 +339,7 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             self.cal_a=round(self.cal_a,4)
             self.cal_b=round(self.cal_b,4)
         else: self.qd_voltage_cal.setPlainText("Error")
+
 ##For Test Only Tab
 # Incread and Decrease the Duty Cicle of PWM for Seed Motor and Fert Motor
     def DecSeedCal(self):
@@ -363,15 +377,8 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self,pinUpDyn):
-        if self.cb_dyn_seed.isChecked():
-            self.popseed=self.popseed+10000
-            if self.popseed>80000:self.popseed=0
-            print (self.popseed)
-        if self.cb_dyn_fert.isChecked():
-            self.fert_rt=self.fert_rt+100
-            if self.fert_rt>500:self.fert_rt=0
-            print (self.fert_rt)
-
+        self.popseed=self.popseed+10000
+        self.fert_rt=self.fert_rt+100
 #
 # Functions of the timers (timeouts)            
 #
@@ -385,9 +392,16 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
                     self.nmea=self.nmea.decode('utf-8')
             self.data,self.hora,self.lat_utm,self.long_utm,self.lat,self.long,self.status=operation.ReadGPS(self.nmea)
             self.nmea=''
+            #Search Neigbhor for Map based aplication
+            if "MAP" in self.seed_mode:
+                self.popseed,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
+            if "MAP" in self.fert_mode:
+                self.fert_rt,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
+#
+#
     def EncoderFunction(self): #Read the Speed of Seed Motor, Machine and the Weight of Fert Tank
         if GPIO.input(pinOnOffButton):
-            self.real_rot_seed=operation.SeedSpeed(self.change_popseed) # read the real speed of seed motor. The change_pop seed is a status if the population seed ou duty cicle change
+            #self.real_rot_seed=operation.SeedSpeed(self.change_popseed) # read the real speed of seed motor. The change_pop seed is a status if the population seed ou duty cicle change
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=operation.WheelSpeed() 
@@ -435,10 +449,10 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
             if self.cb_seed_map.isChecked() and len(self.lat_map_seed)>1 and self.status=='A': #Map mode is active, have map and gps signal
                 self.seed_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
-                self.popseed,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
+                #In GPS Function
                 # add atual and used point in view
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
-                self.scene.addRect(lat_used,long_used,0.5,0.5,self.Kpen,self.Kbrush)
+                if self.lat_used>0:self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
             elif self.cb_seed_fix.isChecked(): #Fix seed distribuition rate
                 self.seed_mode="FIX"
                 self.scene.clear() # clear the Graphics View
@@ -466,10 +480,10 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
             if self.cb_fert_map.isChecked() and len(self.lat_map_fert)>1 and self.status=='A':#Map mode is active, have map and gps signal
                 self.fert_mode="MAP"
                 # find in the map the point nearst to atual point. The return it's the population and the map point used
-                self.fert_rt,lat_used,long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
+                #In GPS Function
                 # add atual and used point in view
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
-                self.scene.addRect(lat_used,long_used,0.5,0.5,self.Kpen,self.Kbrush)
+                if self.lat_used>0:self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
             elif self.cb_fert_fix.isChecked(): #Fix seed distribuition rate
                 self.fert_mode="FIX"
                 self.scene.clear()
@@ -493,11 +507,11 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
                 operation.ControlSpeedFert(self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
             #calculate operational capability and area 
-            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000.0,4)
-            self.area=round(self.area+self.inst_area,4) #in ha
-            self.inst_time=round(self.time_control/3600.0,5)
-            self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
-            self.opcap=round(self.area/(self.time_operation),3) # in ha/h
+            self.inst_area=round(self.row_spacing*self.speed*self.time_control,1) #in m2
+            self.area=round(self.area+self.inst_area,1) #in m2
+            self.inst_time=round(self.time_control/3600.0,5) #in h
+            self.time_operation=round(self.time_operation+self.inst_time,2)   # in h
+            self.opcap=round(self.area/(self.time_operation),3) # in m2/h
             self.inst_opcap=round(self.inst_area/self.inst_time,3)
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))
