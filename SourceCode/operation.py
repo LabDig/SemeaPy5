@@ -7,8 +7,6 @@ import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
 pinEncWhell="P8_11"
 GPIO.setup(pinEncWhell, GPIO.IN)
-pinEncSeed="P9_29"
-GPIO.setup(pinEncSeed, GPIO.IN)
 pinLoadCell="P9_33"
 pinPWM_Seed="P8_13"
 pinEnable_Seed="P8_10"
@@ -69,35 +67,7 @@ def ReadGPS(nmea):
             lat,long,lat_utm,long_utm,data,hora=0,0,0,0,'',''
     except: pass
     return data,hora,lat_utm,long_utm,lat,long,status
-# Calculate the Seed Speed using the encoder
-seed_spped_array,avg_speed,real_rot_seed,atual_st_seed,last_st_seed,\
-aux_i_seed,time_start_seed,st_start_seed=[],0,0,-99,-99,0,0,False # Global variablesSeed Speed
-def SeedSpeed(change_duty_cicle):
-    global atual_st_seed,last_st_seed,aux_i_seed,real_rot_seed,time_start_seed,start_t_seed,seed_spped_array,avg_speed,st_start_seed,last_rot
-    global variation,n_del
-    atual_st_seed=GPIO.input(pinEncSeed)#abs(EncSeed.position)
-    #if have up border
-    if (last_st_seed==0 and atual_st_seed==1):
-        aux_i_seed=aux_i_seed+1
-    #if one up border is detectec start the time
-    if (aux_i_seed==1 and st_start_seed is False):
-        time_start_seed=time.time()
-        st_start_seed=True
-    #at complete 4 up border, calculate the velocity (one revolution is 4 up border)
-    if (aux_i_seed==4):
-        real_rot_seed= round((1)/(time.time()-time_start_seed),2)
-        aux_i_seed=0
-        st_start_seed=False
-        seed_spped_array=np.append(seed_spped_array,real_rot_seed)
-    last_st_seed=atual_st_seed #update last status
-    if change_duty_cicle: #reset 
-        seed_spped_array=[]
-        aux_i_seed=0
-        st_start_seed=False
-    if len(seed_spped_array)==10:seed_spped_array=np.delete(seed_spped_array,0)
-    if len (seed_spped_array)>0: avg_speed=np.mean(seed_spped_array)
-    return round(avg_speed,2)
-#
+
 # Calculate the machine spped using the encoder
 real_rot_wheel,atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,\
 aux_i_wheel,time_reset_speed=0,-1,-1,0,False,0,0 #global variables
@@ -138,13 +108,14 @@ def ReadWeight(cal_a,cal_b):
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
-    kp=1.0
-    if (calc_rot-real_rot)>0.025 and real_rot!=0.0:
+    kp=1.5
+    if (calc_rot-real_rot)>0.02 and real_rot!=0.0:
         dt_corr=dt_corr+kp*(calc_rot-real_rot)
-    elif (calc_rot-real_rot)<-0.025 and  real_rot!=0.0:
+    elif (calc_rot-real_rot)<-0.02 and  real_rot!=0.0:
         dt_corr=dt_corr+kp*(calc_rot-real_rot)
     else: dt_corr=dt_corr
-    if st is True: dt_corr=0
+    if st is True:
+        dt_corr=0
     dt_seed=(a*calc_rot+b)+dt_corr
     if dt_seed>100.0 :
         dt_seed=100.0

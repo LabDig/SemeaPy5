@@ -66,6 +66,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.last_wgt,self.dt_seed,self.last_dt_seed_cal=0,-1,-1  #for ckeck if population and fert ratio change
         self.n_machine_id,self.n_field_id=1,1 #number auxiliar for setting machine and field id
         self.lat_used,self.long_used=0,0 #lat e long used in Map aplication
+        self.fert_rt_cal=0 #fert ratio to calibration distribuitor
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.encoder_timer = QtCore.QTimer()
@@ -114,15 +115,18 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.p_machine_id.clicked.connect(self.IncMacID) # name of Field and Machine
         self.m_field_id.clicked.connect(self.DecFilID)
         self.p_field_id.clicked.connect(self.IncFilID)
-        #For test Tab
+        #Calibration
         self.m_dt_seed.clicked.connect(self.DecSeedCal)  #button plus and minus
         self.p_dt_seed.clicked.connect(self.IncSeedCal)  # values for variavel operations
         self.m_dt_fert.clicked.connect(self.DecFertCal) 
         self.p_dt_fert.clicked.connect(self.IncFertCal)
-        #Calcule calibration equation for seed motor
-        rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
-        duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0]) # duty cicle for PWM
-        self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
+        self.m_fert_cal.clicked.connect(self.DecFertRt) 
+        self.p_fert_cal.clicked.connect(self.IncFertRt)
+        self.save_cal_seed.clicked.connect(self.CalSeed)
+        self.save_cal_fert.clicked.connect(self.CalFert)
+        self.cal_seed_fert.clicked.connect(self.CalibrateSeedFert)
+        
+
         #Open the software with configuration of last use
         self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.conffile_name=os.path.join(self.dir,"conf.txt")
@@ -141,8 +145,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.logfile_name=f.readline() #log file name
             self.machineID=f.readline() 
             self.fieldID=f.readline()
-            self.cal_a=float(f.readline()) #calibration for load cell
-            self.cal_b=float(f.readline()) #calibration for load cell
+            self.cal_a_cell=float(f.readline()) #calibration for load cell
+            self.cal_b_cell=float(f.readline()) #calibration for load cell
+            self.cal_a_seed=float(f.readline()) #calibration for seed spped
+            self.cal_b_seed=float(f.readline()) #calibration for seed spped
+            self.cal_a_fert=float(f.readline()) #calibration for fert ratio
+            self.cal_b_fert=float(f.readline()) #calibration for fert ratio
             self.area=float(f.readline()) #
             self.time_operation=float(f.readline())
         f.close()
@@ -179,6 +187,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.time_start_seed=0
         self.seed_speed_filter=[]
         GPIO.add_event_detect(pinEncSeed,GPIO.RISING,callback=self.SeedSpeed,bouncetime=100)
+
+        #delete in future
+        #Calcule calibration equation for seed motor
+        rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
+        duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0]) # duty cicle for PWM
+        self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
+
         
 ####
 #Functions
@@ -189,10 +204,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         if self.seed_pulse==2: # quarter of revolution
             self.seed_speed_filter=np.append(self.seed_speed_filter,round((0.25)/(time.time()-self.time_start_seed),2))
             self.seed_pulse=0
-        if self.change_popseed :
-            self.seed_pulse==0 #reset if change duty cicle
-            self.seed_speed_filter=[]
-            self.real_rot_seed=0 #set speed to until new calcution. Necessary to control speed don't use old speed
         if len(self.seed_speed_filter)==10:self.seed_speed_filter=np.delete(self.seed_speed_filter,0)
         if len(self.seed_speed_filter)>0: self.real_rot_seed=round(np.mean(self.seed_speed_filter),2)
 
@@ -225,8 +236,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(self.logfile_name+"\n")
             f.write(self.machineID+"\n")
             f.write(self.fieldID+"\n")
-            f.write(str(self.cal_a)+"\n")
-            f.write(str(self.cal_b)+"\n")
+            f.write(str(self.cal_a_cell)+"\n")
+            f.write(str(self.cal_b_cell)+"\n")
+            f.write(str(self.cal_a_seed)+"\n")
+            f.write(str(self.cal_b_seed)+"\n")
+            f.write(str(self.cal_a_fert)+"\n")
+            f.write(str(self.cal_b_fert)+"\n")
             f.write(str(self.area)+"\n")
             f.write(str(self.time_operation)+"\n")
         f.close()
@@ -322,7 +337,8 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
         self.time_operation=0.0
         self.fertfile_name=""
         self.seedfile_name=""
-    #For calibrate the Load Cell of Fert Tank
+
+    #calibrate the Load Cell of Fert Tank
     def SaveCal(self): #Save the point for calibration.
         sum_wgt=0 #Read 20 values for voltage, calculate the mean, show in Line Edit and save in array
         for i in range(0,20):
@@ -335,20 +351,19 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
     def Calibration(self):
         if self.wgt_voltage_cal[0]!=0 and self.wgt_voltage_cal[1]!=0 and self.wgt_voltage_cal[2]!=0 and self.wgt_voltage_cal[3]!=0: 
             mass = np.array([8.0,13.0,18.0,23.0]) #fix mass
-            self.cal_a,self.cal_b,r_value,p_value,std_error=stats.linregress(self.wgt_voltage_cal,mass)
-            self.cal_a=round(self.cal_a,4)
-            self.cal_b=round(self.cal_b,4)
+            self.cal_a_cell,self.cal_b_cell,r_value,p_value,std_error=stats.linregress(self.wgt_voltage_cal,mass)
+            self.cal_a_cell=round(self.cal_a,4)
+            self.cal_b_cell=round(self.cal_b,4)
         else: self.qd_voltage_cal.setPlainText("Error")
 
-##For Test Only Tab
+##Calibration
 # Incread and Decrease the Duty Cicle of PWM for Seed Motor and Fert Motor
     def DecSeedCal(self):
         if self.cb_speed_cal.isChecked():
             self.dt_seed_cal=self.dt_seed_cal-10
-            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
             if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
             elif self.dt_seed_cal>100.0:self.dt_seed_cal=100.0
-            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
+            self.ql_dt_seed.setPlainText(str(self.dt_seed_cal))
             PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
             GPIO.output(pinEnable_Seed,GPIO.HIGH)
     def IncSeedCal(self):
@@ -356,7 +371,7 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             self.dt_seed_cal=self.dt_seed_cal+10
             if self.dt_seed_cal<0.0:self.dt_seed_cal=0.0
             elif self.dt_seed_cal>100.0:self.dt_seed_cal=100.0
-            self.ql_dt_speed.setPlainText(str(self.dt_seed_cal))
+            self.ql_dt_seed.setPlainText(str(self.dt_seed_cal))
             PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed_cal)
             GPIO.output(pinEnable_Seed,GPIO.HIGH)
     def DecFertCal(self):
@@ -375,10 +390,69 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             self.ql_dt_fert.setPlainText(str(self.dt_fert_cal))
             PWM.set_duty_cycle(pinPWM_Fert,self.dt_fert_cal)
             GPIO.output(pinEnable_Fert,GPIO.HIGH)
+    def DecFertRt(self): #set the fert ratio mensured
+        if self.cb_speed_fert.isChecked():
+            self.fert_rt_cal=self.fert_rt_cal-1.0
+            self.ql_fert_cal.setPlainText(str(self.fert_rt_cal))
+    def IncFertRt(self):
+        if self.cb_speed_fert.isChecked():
+            self.fert_rt_cal=self.fert_rt_cal+1.0
+            self.ql_fert_cal.setPlainText(str(self.fert_rt_cal))
+    
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self,pinUpDyn):
         self.popseed=self.popseed+10000
         self.fert_rt=self.fert_rt+100
+
+#Calibrate Seed and Fert
+    def CalSeed(self):
+        print (self.real_rot_seed,self.dt_seed_cal)
+        f=open("cal_seed.txt","a")
+        f.write(str(self.real_rot_seed)+','+str(self.dt_seed_cal)+'\n')
+        f.close()
+
+    def CalFert (self):
+        print (self.fert_rt_cal,self.dt_fert_cal)
+        f=open("cal_fert.txt","a")
+        f.write(str(self.fert_rt_cal)+','+str(self.dt_fert_cal)+'\n')
+        f.close()
+
+    def CalibrateSeedFert(self):
+        #seed
+        if self.cb_speed_cal.isChecked():
+            content=None # clear variable for security
+            with open("cal_seed.txt", "r",encoding='latin-1') as f: content = f.read().splitlines()
+            f.close()
+            self.duty_cal_seed,self.speed_cal_seed=np.zeros(len(content)-1),np.zeros(len(content)-1)
+            for i in range(1,len(content)-1):
+                Row=content[i].split(',')
+                self.speed_cal_seed[i-1]=float(Row[0])
+                self.duty_cal_seed[i-1]=float(Row[1])
+            self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(self.speed_cal_seed,self.duty_cal_seed) # x (rot),y (duty) #duty =a*rot+b
+            f=open("cal_seed.txt","w")
+            f.write('Seed Calibrate\n')
+            f.close()
+            print ("calibrate")
+            #fert
+        if self.cb_speed_fert.isChecked():
+            content=None # clear variable for security
+            with open("cal_fert.txt", "r",encoding='latin-1') as f: content = f.read().splitlines()
+            f.close()
+            self.duty_cal_fert,self.rt_cal_fert=np.zeros(len(content)-1),np.zeros(len(content)-1)
+            for i in range(1,len(content)-1):
+                Row=content[i].split(',')
+                self.rt_cal_fert[i-1]=float(Row[0])
+                self.duty_cal_fert[i-1]=float(Row[1])
+            self.cal_a_fert,self.cal_b_fert,r_value,p_value,std_error=stats.linregress(self.rt_cal_fert,self.duty_cal_fert) # x (rot),y (duty) #duty =a*rot+b
+            #clear files
+            f=open("cal_fert.txt","w")
+            f.write('Fert Calibrate\n')
+            f.close()
+            print ("calibrate")
+        
+        
+ 
+        
 #
 # Functions of the timers (timeouts)            
 #
@@ -399,13 +473,13 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
                 self.fert_rt,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
 #
 #
+#
     def EncoderFunction(self): #Read the Speed of Seed Motor, Machine and the Weight of Fert Tank
         if GPIO.input(pinOnOffButton):
-            #self.real_rot_seed=operation.SeedSpeed(self.change_popseed) # read the real speed of seed motor. The change_pop seed is a status if the population seed ou duty cicle change
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=operation.WheelSpeed() 
-            self.fert_wgt=operation.ReadWeight(self.cal_a,self.cal_b) #Read Fert Weight
+            self.fert_wgt=operation.ReadWeight(self.cal_a_cell,self.cal_b_cell) #Read Fert Weight
 
     def LogFunction(self): # Function for generate a log file and remote monitoring
         if GPIO.input(pinOnOffButton):
@@ -465,9 +539,12 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
             else:  
                 self.seed_mode="OFF"
                 self.popseed=0
-            #check if population change or duty cicle change ==> for use in Encoder Function
+            #check if population change or duty cicle change ==> reset encoder seed speed variable
             if self.popseed!=self.last_popseed or self.dt_seed_cal!=self.last_dt_seed_cal:
                 self.change_popseed=True
+                self.seed_pulse=0 #reset if change duty cicle
+                self.seed_speed_filter=[]
+                self.real_rot_seed=0 #set speed to until new calcution. Necessary to control speed don't use old speed
             else :self.change_popseed=False
             self.last_popseed=self.popseed
             self.last_dt_seed_cal=self.dt_seed_cal
@@ -526,8 +603,10 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
             self.ql_opcap.setPlainText(str(self.time_operation))
             self.lb_status.setText('CALC'+str(self.rot_seed)+' REAL:'+str(self.real_rot_seed))
             self.lb_datetime.setText(self.hora)
-            #in Test Only Tab
-            self.ql_speed_seed.setPlainText(str(self.real_rot_seed))
+            #in Calibrate
+            self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
+  
+
         else: # If button is off
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)

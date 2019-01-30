@@ -1,7 +1,7 @@
 False
-/root/SemeaPy5/SourceCode/for_map_test.txt
-False
-0
+
+True
+60000.0
 95
 False
 
@@ -14,5 +14,9 @@ M-1
 F-2
 18.1057
 -0.3158
-164.6
+156.787762906
+0.860420650096
+10.0
+0.0
+418.8
 0.02

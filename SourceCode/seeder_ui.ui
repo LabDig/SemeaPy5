@@ -433,7 +433,7 @@
       <x>280</x>
       <y>310</y>
       <width>216</width>
-      <height>81</height>
+      <height>51</height>
      </rect>
     </property>
     <layout class="QHBoxLayout" name="horizontalLayout_16">
@@ -2006,7 +2006,7 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>230</y>
+      <y>310</y>
       <width>371</width>
       <height>21</height>
      </rect>
@@ -2019,7 +2019,7 @@
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>290</y>
+      <y>330</y>
       <width>311</width>
       <height>32</height>
      </rect>
@@ -2151,7 +2151,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="m_dt_seed_2">
+      <widget class="QPushButton" name="m_dt_seed">
        <property name="maximumSize">
         <size>
          <width>60</width>
@@ -2171,7 +2171,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPlainTextEdit" name="ql_dt_speed_3">
+      <widget class="QPlainTextEdit" name="ql_dt_seed">
        <property name="maximumSize">
         <size>
          <width>80</width>
@@ -2189,7 +2189,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="p_dt_seed_2">
+      <widget class="QPushButton" name="p_dt_seed">
        <property name="maximumSize">
         <size>
          <width>60</width>
@@ -2233,7 +2233,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QPlainTextEdit" name="ql_dt_speed_2">
+      <widget class="QPlainTextEdit" name="ql_speed_cal">
        <property name="maximumSize">
         <size>
          <width>80</width>
@@ -2500,14 +2500,14 @@
       <x>400</x>
       <y>10</y>
       <width>41</width>
-      <height>361</height>
+      <height>211</height>
      </rect>
     </property>
     <property name="orientation">
      <enum>Qt::Vertical</enum>
     </property>
    </widget>
-   <widget class="QWidget" name="">
+   <widget class="QWidget" name="layoutWidget">
     <property name="geometry">
      <rect>
       <x>460</x>
@@ -2556,6 +2556,32 @@
       </spacer>
      </item>
     </layout>
+   </widget>
+   <widget class="QPushButton" name="cal_seed_fert">
+    <property name="geometry">
+     <rect>
+      <x>90</x>
+      <y>230</y>
+      <width>200</width>
+      <height>71</height>
+     </rect>
+    </property>
+    <property name="maximumSize">
+     <size>
+      <width>200</width>
+      <height>80</height>
+     </size>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>14</pointsize>
+      <weight>50</weight>
+      <bold>false</bold>
+     </font>
+    </property>
+    <property name="text">
+     <string>CALIBRATE</string>
+    </property>
    </widget>
   </widget>
  </widget>
