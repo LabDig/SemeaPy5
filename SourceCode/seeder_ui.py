@@ -8,7 +8,7 @@
 # WARNING! All changes made in this file will be lost!
 
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+import os
 class Ui_SEMEA(object):
     def setupUi(self, SEMEA):
         SEMEA.setObjectName("SEMEA")
@@ -17,7 +17,8 @@ class Ui_SEMEA(object):
         font.setPointSize(12)
         SEMEA.setFont(font)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("icon.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+		self.dir=os.path.dirname(os.path.abspath(__file__))  
+        icon.addPixmap(QtGui.QPixmap(os.path.join(self.dir,"icon.png")), QtGui.QIcon
         SEMEA.setWindowIcon(icon)
         SEMEA.setTabPosition(QtWidgets.QTabWidget.North)
         self.main = QtWidgets.QWidget()
@@ -168,7 +169,7 @@ class Ui_SEMEA(object):
         font.setPointSize(14)
         self.exit.setFont(font)
         icon1 = QtGui.QIcon()
-        icon1.addPixmap(QtGui.QPixmap("exit.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon1.addPixmap(QtGui.QPixmap(os.path.join(self.dir,"exit.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.exit.setIcon(icon1)
         self.exit.setIconSize(QtCore.QSize(64, 54))
         self.exit.setObjectName("exit")
@@ -181,7 +182,7 @@ class Ui_SEMEA(object):
         self.bt_to_conf.setFont(font)
         self.bt_to_conf.setText("")
         icon2 = QtGui.QIcon()
-        icon2.addPixmap(QtGui.QPixmap("go.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon2.addPixmap(QtGui.QPixmap(os.path.join(self.dir,"go.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.bt_to_conf.setIcon(icon2)
         self.bt_to_conf.setIconSize(QtCore.QSize(64, 64))
         self.bt_to_conf.setObjectName("bt_to_conf")
@@ -266,8 +267,8 @@ class Ui_SEMEA(object):
         font = QtGui.QFont()
         font.setPointSize(12)
         self.bt_load_seed.setFont(font)
-        icon3 = QtGui.QIcon()
-        icon3.addPixmap(QtGui.QPixmap("file.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon3 = QtGui.QIcon(os.path.join(self.dir,"file.png"))
+        icon3.addPixmap(QtGui.QPixmap(), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.bt_load_seed.setIcon(icon3)
         self.bt_load_seed.setIconSize(QtCore.QSize(32, 32))
         self.bt_load_seed.setObjectName("bt_load_seed")
@@ -500,7 +501,7 @@ class Ui_SEMEA(object):
         self.bt_back_main.setFont(font)
         self.bt_back_main.setText("")
         icon4 = QtGui.QIcon()
-        icon4.addPixmap(QtGui.QPixmap("back.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon4.addPixmap(QtGui.QPixmap(os.path.join(self.dir,"back.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.bt_back_main.setIcon(icon4)
         self.bt_back_main.setIconSize(QtCore.QSize(64, 64))
         self.bt_back_main.setObjectName("bt_back_main")
@@ -1046,6 +1047,12 @@ class Ui_SEMEA(object):
         self.retranslateUi(SEMEA)
         SEMEA.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(SEMEA)
+		self.bt_to_conf.clicked.connect(lambda:SEMEA.setCurrentIndex(1))
+        self.bt_back_main.clicked.connect(lambda:SEMEA.setCurrentIndex(0))
+        self.bt_to_conf_2.clicked.connect(lambda:SEMEA.setCurrentIndex(2))
+        self.bt_back_conf.clicked.connect(lambda:SEMEA.setCurrentIndex(1))
+        self.bt_to_cal.clicked.connect(lambda:SEMEA.setCurrentIndex(3))
+        self.bt_back_conf_2.clicked.connect(lambda:SEMEA.setCurrentIndex(2))
 
     def retranslateUi(self, SEMEA):
         _translate = QtCore.QCoreApplication.translate

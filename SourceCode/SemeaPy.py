@@ -344,7 +344,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def DefineID(self): # Define the Machine ID, Field ID and the logfilename
         self.machineID='M-'+str(self.n_machine_id)
         self.fieldID='F-'+str(self.n_field_id)
-        self.logfile_name=self.machineID+'_'+self.fieldID+'.txt'
+		self.dir=os.path.dirname(os.path.abspath(__file__))  
+        self.logfile_name=os.path.join(self.dir,self.machineID+'_'+self.fieldID+'.txt')
         f=open(self.logfile_name,'w') #Creat the logfile with header
         f.write("Data,Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
 Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode,Remote Status\n")

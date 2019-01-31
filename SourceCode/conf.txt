@@ -9,7 +9,7 @@ False
 0
 0.75
 True
-M-1_F-3.txt
+/root/SemeaPy5/SourceCode/M-1_F-3.txt
 M-1
 F-3
 18.1057
