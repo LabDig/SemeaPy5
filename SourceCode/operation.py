@@ -5,8 +5,7 @@ import numpy as np
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
-pinEncWhell="P8_11"
-GPIO.setup(pinEncWhell, GPIO.IN)
+
 pinLoadCell="P9_33"
 pinPWM_Seed="P8_13"
 pinEnable_Seed="P8_10"
@@ -68,42 +67,17 @@ def ReadGPS(nmea):
     except: pass
     return data,hora,lat_utm,long_utm,lat,long,status
 
-# Calculate the machine spped using the encoder
-real_rot_wheel,atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,\
-aux_i_wheel,time_reset_speed=0,-1,-1,0,False,0,0 #global variables
-def WheelSpeed():
-    global atual_st_wheel,last_st_wheel,time_start_wheel,st_start_wheel,aux_i_wheel,real_rot_wheel,time_reset_speed
-    atual_st_wheel=GPIO.input(pinEncWhell)
-    #if have up border
-    if (last_st_wheel==0 and atual_st_wheel==1):
-        aux_i_wheel=aux_i_wheel+1
-        time_reset_speed=time.time()
-        print (aux_i_wheel)
 
-    #if one up border is detectec start the time
-    if (aux_i_wheel==1 and st_start_wheel is False):
-        time_start_wheel=time.time()
-        st_start_wheel=True
-    #at complete 2 up border, calculate the velocity (one revolution is 4 up border), and 1 revolution is 2.0 m
-    if (aux_i_wheel==10):
-        real_rot_wheel= (1)/(time.time()-time_start_wheel)
-        aux_i_wheel=0
-        st_start_wheel=False
-    last_st_wheel=atual_st_wheel #update last statu
-    #set speed to 0, if the machine stop
-    if (time.time()-time_reset_speed>1.0): real_rot_wheel=0.0 #if speed< 0.25 m/s ==> speed=0
-    return round(real_rot_wheel,2)
 # Read the weigth of fert tank
-aux_reset,sum_wgt,value=0,0,0 #global variables
+mass_filter,mass=[],0 #global variables
 def ReadWeight(cal_a,cal_b):
-    global aux_reset,sum_wgt,value
-    aux_reset=aux_reset+1
-    sum_wgt=sum_wgt+1.8*ADC.read(pinLoadCell)
-    if aux_reset==100:
-        value=(sum_wgt/100.0)*cal_a+cal_b
-        aux_reset=0
-        sum_wgt=0
-    return round(value,1)
+        
+    global mass_filter,mass
+    mass_filter=np.append(mass_filter,cal_a*(1.8*ADC.read(pinLoadCell))+cal_b)
+    if len(mass_filter)==10:mass_filter=np.delete(mass_filter,0)
+    if len(mass_filter)>0: mass=round(np.mean(mass_filter),2)
+    return mass
+
 # Control the seed speed
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
