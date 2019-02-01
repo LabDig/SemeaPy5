@@ -344,7 +344,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def DefineID(self): # Define the Machine ID, Field ID and the logfilename
         self.machineID='M-'+str(self.n_machine_id)
         self.fieldID='F-'+str(self.n_field_id)
-		self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.logfile_name=os.path.join(self.dir,self.machineID+'_'+self.fieldID+'.txt')
         f=open(self.logfile_name,'w') #Creat the logfile with header
         f.write("Data,Hora,MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
@@ -524,8 +523,8 @@ str(self.fert_rt)+'&FertLevel='+str(self.fert_wgt)+'&Area='+str(self.area)
                 a=a.split("\r\n")
                 for i in range (len(a)):
                     if '+HTTPACTION:' in a[i]:
-                        self.rm_st=a[i]
                         self.ql_remote_status.setPlainText(a[i])
+                        self.rm_st=a[i]
             else:
                 self.rm_st='off'
                 self.ql_remote_status.setPlainText("Disable")
