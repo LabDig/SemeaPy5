@@ -41,16 +41,16 @@ def ReadMapFile(data):
             z.append(float(Row[2]))
     return x,y,z
 # Split the gprm nmea sente
-lat,long,lat_utm,long_utm,status,data,hora=0,0,0,0,'','','' #global variables for gps
+lat,long,lat_utm,long_utm,status,date,time=0,0,0,0,'','','' #global variables for gps
 def ReadGPS(nmea):
-    global lat,long,lat_utm,long_utm,data,status,hora,data
+    global lat,long,lat_utm,long_utm,status,time,date
     try:
         nmea_array=nmea.split(',')
         size=len(nmea_array)
         status=nmea_array[2]  # check status
         if status=='A' and size==13:
-            data=nmea_array[9][0]+nmea_array[9][1]+'/'+nmea_array[9][2]+nmea_array[9][3]+'/'+nmea_array[9][4]+nmea_array[9][5]
-            hora=str(int(nmea_array[1][0]+nmea_array[1][1])-2)+':'+nmea_array[1][2]+nmea_array[1][3]+':'+nmea_array[1][4]+nmea_array[1][5]
+            date=nmea_array[9][0]+nmea_array[9][1]+'/'+nmea_array[9][2]+nmea_array[9][3]+'/'+nmea_array[9][4]+nmea_array[9][5]
+            time=nmea_array[1][0]+nmea_array[1][1]+':'+nmea_array[1][2]+nmea_array[1][3]+':'+nmea_array[1][4]+nmea_array[1][5]
             latMin=float(nmea_array[3][2:])/60   
             lat=((float(nmea_array[3][0:2])+latMin)) 
             lonMin=float(nmea_array[5][3:])/60   
@@ -63,9 +63,9 @@ def ReadGPS(nmea):
             lat_utm=float(utm_conv[0])
             long_utm=float(utm_conv[1])
         if status=='V':
-            lat,long,lat_utm,long_utm,data,hora=0,0,0,0,'',''
+            lat,long,lat_utm,long_utm,date,time=0,0,0,0,'',''
     except: pass
-    return data,hora,lat_utm,long_utm,lat,long,status
+    return date,time,lat_utm,long_utm,lat,long,status
 
 
 # Read the weigth of fert tank
