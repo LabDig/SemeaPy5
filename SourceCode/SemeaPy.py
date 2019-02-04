@@ -45,7 +45,7 @@ ADC.setup()
 pinLoadCell="P9_33"
 #GPS
 gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
-#3F
+#3G
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
@@ -142,8 +142,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.save_cal_fert.clicked.connect(self.CalFert)
         self.cal_seed_fert.clicked.connect(self.CalibrateSeedFert)
 #
-#        
-#
         #Open the software with configuration of last use
         self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.conffile_name=os.path.join(self.dir,"conf.txt")
@@ -207,14 +205,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.real_mach_speed=0
         GPIO.add_event_detect(pinEncSeed,GPIO.RISING,callback=self.SeedSpeed,bouncetime=100)
         GPIO.add_event_detect(pinEncWhell,GPIO.RISING,callback=self.WheelSpeed,bouncetime=100)
-#
-#
-#
-        #delete in future
-        #Calcule calibration equation for seed motor
-        rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
-        duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0]) # duty cicle for PWM
-        self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
 ###
 #Functions
 # Im main Tab
