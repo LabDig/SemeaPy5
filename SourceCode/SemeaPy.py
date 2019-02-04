@@ -602,7 +602,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
                 operation.ControlSpeedFert(self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
             #calculate operational capability and area 
-            self.inst_area=round(self.row_spacing*self.speed*self.time_control,5) #in m2
+            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000,5) #in m2
             self.area=self.area+self.inst_area #in h2
             self.inst_time=round(self.time_control/3600.0,5) #in h
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
