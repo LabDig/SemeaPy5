@@ -45,13 +45,27 @@ ADC.setup()
 pinLoadCell="P9_33"
 #GPS
 gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
-#Bluetooh
-blth = serial.Serial("/dev/ttyS1", 9600,timeout=0.1) # P9_24 P9_26
+#3F
+sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
+        #start 3 g
+        sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
+        time.sleep(1)
+        sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
+        time.sleep(1)
+        sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
+        time.sleep(1)
+        sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
+        time.sleep(1)
+        sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
+        time.sleep(1)
+        sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
+        time.sleep(1)
+        sim800l.readall() #clear buffer
         #global variables declaration
         self.speed,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,'',0.0,0.0,0.0,0.0,0.0 #operation variables
         self.inst_opcap,self.inst_area,self.inst_time=0,0,0 #operation variables
@@ -74,9 +88,11 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.control_timer = QtCore.QTimer()
         self.gps_timer=QtCore.QTimer()
         self.log_timer=QtCore.QTimer()
+        self.sim_get_timer=QtCore.QTimer()
         self.control_timer.timeout.connect(self.ControlFunction)
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.log_timer.timeout.connect(self.LogFunction)
+        self.sim_get_timer.timeout.connect(self.GetFunction)
         self.time_control=0.25 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
         self.gps_timer.start(1000) # Start GPS Function
@@ -125,8 +141,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.save_cal_seed.clicked.connect(self.CalSeed)
         self.save_cal_fert.clicked.connect(self.CalFert)
         self.cal_seed_fert.clicked.connect(self.CalibrateSeedFert)
-        
-
+#
+#        
+#
         #Open the software with configuration of last use
         self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.conffile_name=os.path.join(self.dir,"conf.txt")
@@ -190,17 +207,15 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.real_mach_speed=0
         GPIO.add_event_detect(pinEncSeed,GPIO.RISING,callback=self.SeedSpeed,bouncetime=100)
         GPIO.add_event_detect(pinEncWhell,GPIO.RISING,callback=self.WheelSpeed,bouncetime=100)
-
-        
-
+#
+#
+#
         #delete in future
         #Calcule calibration equation for seed motor
         rot = np.array([0.25,0.37,0.49,0.63,0.75,0.87,0.98]) # angular speed meansured
         duty=np.array([40.0,50.0,60.0,70.0,80.0,90.0,100.0]) # duty cicle for PWM
         self.cal_a_seed,self.cal_b_seed,r_value,p_value,std_error=stats.linregress(rot,duty) # x (rot),y (duty) #duty =a*rot+b
-
-        
-####
+###
 #Functions
 # Im main Tab
     def WheelSpeed(self,pinEncWhell):
@@ -212,18 +227,17 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.wheel_pulse=0
         if len(self.wheel_speed_filter)==5:self.wheel_speed_filter=np.delete(self.wheel_speed_filter,0)
         if len(self.wheel_speed_filter)>0: self.real_mach_speed=round(np.mean(self.wheel_speed_filter),2)
-
-
+#
+#
     def SeedSpeed(self,pinEncSeed):
         self.seed_pulse=self.seed_pulse+1
         if self.seed_pulse==1:self.time_start_seed=time.time()
         if self.seed_pulse==2: # quarter of revolution
             self.seed_speed_filter=np.append(self.seed_speed_filter,round((0.25)/(time.time()-self.time_start_seed),2))
             self.seed_pulse=0
-        if len(self.seed_speed_filter)==10:self.seed_speed_filter=np.delete(self.seed_speed_filter,0)
+        if len(self.seed_speed_filter)==30:self.seed_speed_filter=np.delete(self.seed_speed_filter,0)
         if len(self.seed_speed_filter)>0: self.real_rot_seed=round(np.mean(self.seed_speed_filter),2)
-
-
+#
     def Close(self): #save configuration inf file, clear GPIO, stop timer and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
             f.write(str(self.cb_seed_map.isChecked())+"\n")
@@ -255,6 +269,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.control_timer.stop()
         self.gps_timer.stop()
         self.log_timer.stop()
+        self.sim_get_timer.stop()
         self.close()
     def FitMap(self): self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio) # fit the map
     def ZoomOut(self): #zoom out
@@ -342,8 +357,7 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
         self.fertfile_name=""
         self.seedfile_name=""
         self.log_id=0
-
-    #calibrate the Load Cell of Fert Tank
+#calibrate the Load Cell of Fert Tank
     def SaveCal(self): #Save the point for calibration.
         sum_wgt=0 #Read 20 values for voltage, calculate the mean, show in Line Edit and save in array
         for i in range(0,20):
@@ -362,7 +376,6 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             QMessageBox.information(self,'Calibrate Load Cell','Sucess')
         else: QMessageBox.information(self,'Calibrate Load Cell','Error')
         print ("Load Cell",self.cal_a_cell,self.cal_b_cell,r_value,p_value,std_error)
-
 ##Calibration
 # Incread and Decrease the Duty Cicle of PWM for Seed Motor and Fert Motor
     def DecSeedCal(self):
@@ -405,25 +418,25 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
         if self.cb_speed_fert.isChecked():
             self.fert_rt_cal=self.fert_rt_cal+1.0
             self.ql_fert_cal.setPlainText(str(self.fert_rt_cal))
-    
+#   
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self,pinUpDyn):
         self.popseed=self.popseed+10000
+        print ("din")
         self.fert_rt=self.fert_rt+100
-
 #Calibrate Seed and Fert
     def CalSeed(self):
         print (self.real_rot_seed,self.dt_seed_cal)
         f=open("cal_seed.txt","a")
         f.write(str(self.real_rot_seed)+','+str(self.dt_seed_cal)+'\n')
         f.close()
-
+#
     def CalFert (self):
         print (self.fert_rt_cal,self.dt_fert_cal)
         f=open("cal_fert.txt","a")
         f.write(str(self.fert_rt_cal)+','+str(self.dt_fert_cal)+'\n')
         f.close()
-
+#
     def CalibrateSeedFert(self):
         #seed
         if self.cb_speed_cal.isChecked():
@@ -443,7 +456,6 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             f=open("cal_seed.txt","w")
             f.write('Seed Calibrate\n')
             f.close()
-            
             #fert
         if self.cb_speed_fert.isChecked():
             content=None # clear variable for security
@@ -463,8 +475,6 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
             f=open("cal_fert.txt","w")
             f.write('Fert Calibrate\n')
             f.close()
- 
-        
 #
 # Functions of the timers (timeouts)            
 #
@@ -483,20 +493,30 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
                 self.popseed,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
             if "MAP" in self.fert_mode:
                 self.fert_rt,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
-           
-    
+#
+    def GetFunction(self):
+        sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
+        a=sim800l.readall()
+        a=a.decode('utf-8')
+        a=a.split("\r\n")
+        for jj in range (len(a)):
+            if '+HTTPACTION:' in a[jj]:self.rm_st=a[jj]
+        self.ql_remote_status.setPlainText(self.rm_st)
+        self.sim_get_timer.stop()
+#
+#    
     def LogFunction(self): # Function for generate a log file 
         if GPIO.input(pinOnOffButton):
             self.log_id=self.log_id+1
             #remote monitoring
             if self.cb_remote.isChecked():
+                link='http://andrecoelho.tech/SemeaView/send_mysql.php?'
                 str_data='LogID='+str(self.log_id)+'&Date='+str(self.date)+'&Time='+str(self.time)+'&MachineID='+self.machineID\
 +'&FieldID='+self.fieldID+'&Lati='+str(self.lat)+'&Longi='+str(self.long)+'&XUtm='+str(self.lat_utm)+'&YUtm='+str(self.long_utm)+'&Speed='+\
 str(self.speed)+'&OpCap='+str(self.opcap)+'&TimeOperation='+str(self.time_operation)+'&Population='+str(self.popseed)+'&FertRatio='+\
-str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)+'#\n'
-                blth.write(str_data.encode())
-                self.ql_remote_status.setPlainText("Sending.")
-                self.rm_st='on'
+str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
+                sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+str_data+'\r'))
+                self.sim_get_timer.start(5000)
             else:
                 self.rm_st='off'
                 self.ql_remote_status.setPlainText("Disable")
@@ -507,12 +527,11 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)+'#\n'
 str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+str(self.speed)+","+str(self.status)+","+ \
 str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+\
 ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)\
-+"," +str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st
++"," +str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st+","+str(self.dt_seed)+","+str(self.rot_seed)+","+str(self.real_rot_seed)+"\n"
             f=open(self.logfile_name,'a')
             f.write(data_string)
-            f.write("\n")
             f.close()
-        else: elf.ql_logfile.setPlainText("Not saving...")
+        else: self.ql_logfile.setPlainText("Not saving...")
 #
 # Function that control the seed and fert application motor            
     def ControlFunction(self):  
@@ -526,7 +545,6 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=self.real_mach_speed
-            
             #
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
             ###Seeder Distributor###
@@ -594,31 +612,27 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
                 operation.ControlSpeedFert(self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
             #calculate operational capability and area 
-            self.inst_area=round(self.row_spacing*self.speed*self.time_control,1) #in m2
-            self.area=round(self.area+self.inst_area,1) #in m2
+            self.inst_area=round(self.row_spacing*self.speed*self.time_control,5) #in m2
+            self.area=self.area+self.inst_area #in h2
             self.inst_time=round(self.time_control/3600.0,5) #in h
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
             self.opcap=round(self.area/(self.time_operation),3) # in m2/h
             self.inst_opcap=round(self.inst_area/self.inst_time,3)
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))
-            if self.dt_seed==100.0: self.ql_seed.setPlainText('HIGH')
-            elif self.dt_seed==0.0:self.ql_seed.setPlainText('LOW')
-            else: self.ql_seed.setPlainText(str(self.popseed))
+            self.ql_seed.setPlainText(str(self.popseed))
             if self.status=='A':self.ql_pdop.setPlainText('Active')
-            if self.status!='A':self.ql_pdop.setPlainText('No Signal')
+            else:self.ql_pdop.setPlainText('No Signal')
             self.ql_fert_rt.setPlainText(str(self.fert_rt))
             self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
             self.ql_area.setPlainText(str(self.area))
             self.ql_opcap.setPlainText(str(self.time_operation))
-            self.lb_status.setText('CALC'+str(self.rot_seed)+' REAL:'+str(self.real_rot_seed))
+            self.lb_status.setText('CALC'+str(self.rot_seed)+' REAL:'+str(self.real_rot_seed)+'Dt:'+str(self.dt_seed))
+            if self.dt_seed<40.0: self.lb_status.setText("Low dt seed")
             self.lb_datetime.setText(self.time)
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             #
-            
-                
-
         else: # If button is off
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)

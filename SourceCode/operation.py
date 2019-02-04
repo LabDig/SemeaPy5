@@ -82,7 +82,7 @@ def ReadWeight(cal_a,cal_b):
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
-    kp=1.5
+    kp=0.5
     if (calc_rot-real_rot)>0.02 and real_rot!=0.0:
         dt_corr=dt_corr+kp*(calc_rot-real_rot)
     elif (calc_rot-real_rot)<-0.02 and  real_rot!=0.0:
@@ -91,10 +91,8 @@ def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     if st is True:
         dt_corr=0
     dt_seed=(a*calc_rot+b)+dt_corr
-    if dt_seed>100.0 :
-        dt_seed=100.0
-    if dt_seed<40.0 :
-        dt_seed=0.0 #because the motor dont work in low speed
+    if dt_seed>100.0 :dt_seed=100.0
+    if dt_seed<40.0 :dt_seed=0#because the motor dont work in low speed
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     return dt_seed
