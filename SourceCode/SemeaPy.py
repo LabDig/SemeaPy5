@@ -79,11 +79,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.dt_seed_cal,self.dt_fert_cal=0,0 #variables for test 
         self.change_popseed=False #variables for dynamic test and check if population changet
         self.last_popseed,self.last_fert_rt=0,0 #for ckeck if population and fert ratio change
-        self.last_wgt,self.dt_seed,self.last_dt_seed_cal=0,-1,-1  #for ckeck if population and fert ratio change
+        self.dt_seed,self.last_dt_seed_cal=-1,-1  #for ckeck if population and fert ratio change
         self.n_machine_id,self.n_field_id=1,1 #number auxiliar for setting machine and field id
         self.lat_used,self.long_used=0,0 #lat e long used in Map aplication
         self.fert_rt_cal=0 #fert ratio to calibration distribuitor
         self.rm_st,self.rec='','' #remote status and string send by smartphone
+        self.calc_m_fert,self.last_wgt=0,0 #calc the mass exit in log function period
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.gps_timer=QtCore.QTimer()
@@ -197,7 +198,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
            self.LoadFertMap()
         else: self.fertfile_name=""
         #Event Detect Dynamic Test Button
-        GPIO.add_event_detect(pinUpDyn,GPIO.RISING,callback=self.IncPopFert,bouncetime=100)
+        GPIO.add_event_detect(pinUpDyn,GPIO.RISING,callback=self.IncPopFert,bouncetime=250)
         #Seed Speed Encoder
         self.seed_pulse,self.wheel_pulse=0,0
         self.time_start_seed,self.time_start_wheel,self.time_last_pulse=0,0,0
@@ -339,7 +340,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.logfile_name=os.path.join(self.dir,self.machineID+'_'+self.fieldID+'.txt')
         f=open(self.logfile_name,'w') #Creat the logfile with header
         f.write("LogID,Date,Time (UTC),MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
-Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode,Remote Status\n")
+Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode,\
+Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit\n")
         f.close()
         #Reset area and time operation and clear configuration
         self.area=0.0
@@ -411,9 +413,9 @@ Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m)
 #   
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self,pinUpDyn):
-        self.popseed=self.popseed+10000
+        #self.popseed=self.popseed+10000
+        #self.fert_rt=self.fert_rt+100
         print ("din")
-        self.fert_rt=self.fert_rt+100
 #Calibrate Seed and Fert
     def CalSeed(self):
         print (self.real_rot_seed,self.dt_seed_cal)
@@ -517,10 +519,14 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
 str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+str(self.speed)+","+str(self.status)+","+ \
 str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+\
 ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)\
-+"," +str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st+","+str(self.dt_seed)+","+str(self.rot_seed)+","+str(self.real_rot_seed)+"\n"
++"," +str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st+","+str(self.dt_seed)+","+str(self.rot_seed)+","+str(self.real_rot_seed)+\
+    str(self.calc_m_fert)+ str(self.last_wgt-self.fert_wgt)+ "\n"
             f=open(self.logfile_name,'a')
             f.write(data_string)
             f.close()
+            #Fert Mass Exit Control
+            self.calc_m_fert=0 #reset
+            self.last_wgt=self.fert_wgt
         else: self.ql_logfile.setPlainText("Not saving...")
 #
 # Function that control the seed and fert application motor            
@@ -591,22 +597,24 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             else:
                 self.fert_mode="OFF"
                 self.fert_rt=0
-            #check if fertilizer ratio change ==> for use in dynamic calibration
+            #check if fertilizer ratio change ==> for use in dynamic calibration (future development)
             if self.fert_rt!=self.last_fert_rt:
                 self.change_fertrt=True
             else :self.change_fertrt=False
             self.last_fert_rt=self.fert_rt
-            self.last_wgt=self.fert_wgt #update the fertilizer wgt
+            # 
             #Calcute and Control Speed Motor
             if self.cb_speed_fert.isChecked() is False:
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
-                operation.ControlSpeedFert(self.fertbys,self.fert_wgt,self.last_wgt,self.speed,self.time_control,self.last_fert_rt)
+                operation.ControlSpeedFert(self.cal_a_fert,self.cal_b_fert,self.fertbys)
+            #cal mass distribution (in log periodo =10 s)
+            self.calc_m_fert=self.calc_m_fert+self.fertbys*self.time_operation #in kg => reset in LogFunction
             #calculate operational capability and area 
-            self.inst_area=round(self.row_spacing*self.speed*self.time_control/10000,5) #in m2
-            self.area=self.area+self.inst_area #in h2
+            self.inst_area=self.row_spacing*self.speed*self.time_control #in ha
+            self.area=round(self.area+self.inst_area/10000,2) #in h2
             self.inst_time=round(self.time_control/3600.0,5) #in h
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
-            self.opcap=round(self.area/(self.time_operation),3) # in m2/h
+            self.opcap=round(self.area/(self.time_operation),3) # in ha/h
             self.inst_opcap=round(self.inst_area/self.inst_time,3)
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))

@@ -12,15 +12,15 @@ sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
 time.sleep(1)
 sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
 time.sleep(1)
+print ("clear")
 sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
 time.sleep(1)
-sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
+sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r')) 
 time.sleep(1)
-print ("clear")
-sim800l.readall() #clear buffer
+print (sim800l.readall()) #clear buffer
 m='nnn'
 i=0
-while True:
+while i<50:
     t=time.time()
     i=i+1 
     link="http://andrecoelho.tech/SemeaView/send_mysql.php?LogID="+str(i)
@@ -28,10 +28,10 @@ while True:
     time.sleep(5)
     sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
     time.sleep(5)
+    time.sleep(1)
     a=sim800l.readall()
     a=a.decode('utf-8')
     a=a.split("\r\n")
-    for jj in range (len(a)):
-            if '+HTTPACTION:' in a[jj]:m=a[jj]
-    print (round(time.time()-t,2),m)
-
+    print (i,round(time.time()-t,2),a)
+print ("inish")
+sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))

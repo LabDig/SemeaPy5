@@ -82,7 +82,7 @@ def ReadWeight(cal_a,cal_b):
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
-    kp=0.5
+    kp=1.5
     if (calc_rot-real_rot)>0.02 and real_rot!=0.0:
         dt_corr=dt_corr+kp*(calc_rot-real_rot)
     elif (calc_rot-real_rot)<-0.02 and  real_rot!=0.0:
@@ -97,15 +97,10 @@ def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     return dt_seed
 # Control the seed speed     
-def ControlSpeedFert(fertbys,wgt,last_wgt,v,t,change_rt):
-    m_exit_cal=fertbys*t  #the ideal is 5 s or 5 m
-    m_exit_real=wgt-last_wgt  #fertilizer mass the real exit
-    if change_rt is False: #only for fert_rt constant
-        varm= m_exit_cal-m_exit_real #based in this, ajust the dt
-    else: varm=0
-    dt=(1300*fertbys) # Experimental Calibration Equation
+def ControlSpeedFert(a,b,fertbys):
+    dt=a*fertbys+b # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
-    if dt<0.0: dt=0.0
+    if dt<40.0: dt=0.0
     PWM.set_duty_cycle(pinPWM_Fert,dt)
-    if dt>10: GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
-    else:GPIO.output(pinEnable_Fert,GPIO.LOW)
+    GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
+    
