@@ -49,14 +49,12 @@ gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 #Arduino
-ino = serial.Serial("/dev/ttyS2", 9600,timeout=0.05) # P9_21 P9_22
+ino = serial.Serial("/dev/ttyACM0", 9600) # P9_21 P9_22
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
         super(Semea,self).__init__(parent)
         self.setupUi(self)
-        #Clear buffer Arduino
-        ino.readall()
         #global variables declaration
         self.speed,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,'',0.0,0.0,0.0,0.0,0.0 #operation variables
         self.inst_opcap,self.inst_area,self.inst_time=0,0,0 #operation variables
@@ -77,15 +75,23 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.rm_st,self.rec='','' #remote status and string send by smartphone
         self.calc_m_fert,self.last_wgt=0,0 #calc the mass exit in log function period
         self.aux,self.error=0,0#to 3g function, log and gps
+        self.array_s,self.array_w=[],[] #mean speed filter
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.log_timer = QtCore.QTimer()
+        self.gps_timer = QtCore.QTimer()
+        self.ino_timer = QtCore.QTimer()
         self.control_timer.timeout.connect(self.ControlFunction)
         self.log_timer.timeout.connect(self.LogFunction)
-        self.time_control=0.5 #in s
+        self.gps_timer.timeout.connect(self.GPSFunction)
+        self.ino_timer.timeout.connect(self.SpeedFunction)
+        self.time_control=0.25 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
-        self.encoder_timer.start(5)
         self.log_timer.start(5000)
+        self.gps_timer.start(1000)
+        self.ino_timer.start(200)
+        s='1'
+        ino.write(s.encode())
         #GUI Buttons Configuration
         #Main
         self.exit.clicked.connect(self.Close)  #exit button
@@ -185,40 +191,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         if self.cb_fert_map.isChecked():
            self.LoadFertMap()
         else: self.fertfile_name=""
-        #Variables for Speed and Dynamic
-        self.last_st_wheel,self.st_wheel=-1,-1
-        self.real_mach_speed=0
-        self.ton_w,self.toff_w,self.tz_w,self.v0_w,self.v_w=0,0,0,0,0
-        self.t1_w,self.t2_w=0,0
 ###
 #Functions
 # Im main Tab
-    def EncoderFunction(self):
-        #wheel
-        self.st_wheel= GPIO.input(pinEncWhell)
-        if self.st_wheel==0 and self.last_st_wheel==1: #border
-            self.toff_w=time.time()
-            self.tz_w=self.toff_w
-            self.t1_w=time.time()-self.ton_w
-            self.WheelSpeed(self.t1_w,self.t2_w)
-        if self.st_wheel==1 and self.last_st_wheel==0: #border
-            self.ton_w=time.time()
-            self.t2_w=time.time()-self.toff_w
-            self.WheelSpeed(self.t1_w,self.t2_w)
-        if (time.time()-self.tz_w)>2.0:
-            self.WheelSpeed(0,0)
-        self.last_st_wheel=self.st_wheel
-
-       
-#
-    def WheelSpeed(self,t1,t2):
-        if (t1>0.05 and t2>0.05 and t1/t2>0.85 and t1/t2<1.15) :
-            self.v0_w=self.v_w
-            self.v_w=(2.0/9.0)/((t1+t2)/2)
-            self.real_mach_speed=round((self.v_w+self.v0_w)/2,1)
-        if (t1==0 and t2==0):self.real_mach_speed=0
-#
-        
 #   
     def Close(self): #save configuration inf file, clear GPIO, stop timer and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
@@ -246,6 +221,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(str(self.time_operation)+"\n")
             f.write(str(self.log_id)+"\n")
         f.close()
+        s='0'
+        ino.write(s.encode())
         GPIO.cleanup()
         PWM.cleanup()
         sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
@@ -493,17 +470,38 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.last_wgt=self.fert_wgt
         else:self.ql_logfile.setPlainText("Not saving")
 #
+  
+    def SpeedFunction(self):
+            #speed
+            vel=ino.readline()
+            vel=vel.decode('utf-8')
+            try:self.real_mach_speed,self.real_rot_seed=vel.split(',')
+            except:pass
+            self.real_mach_speed=2.0*float(self.real_mach_speed)
+            self.real_rot_seed=float(self.real_rot_seed)
+            if self.real_mach_speed>0.4 :
+                self.real_mach_speed,self.array_w=self.MeanFilter(self.real_mach_speed,self.array_w)
+                self.real_mach_speed=round(self.real_mach_speed,1)
+            else:self.real_mach_speed=0
+            if  self.change_popseed is True:  self.array_s=[]
+            if  self.real_rot_seed>0.1 and self.change_popseed is False:
+                self.real_rot_seed,self.array_s=self.MeanFilter(self.real_rot_seed,self.array_s)
+                self.real_rot_seed=round(self.real_rot_seed,2)
+
+    def MeanFilter(self,value,array):
+        array=np.append(array,value)
+        if len(array)>5:np.append(array,0)
+        return np.mean(array),array
+        
 # Function that control the seed and fert application motor            
     def ControlFunction(self):
         if GPIO.input(pinOnOffButton):
-            #Call GPS every loop
-            self.GPSFunction()
             if self.status=='A': #plot in graph if have gps signal
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                 self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             #tank mass
             self.fert_wgt=operation.ReadWeight(self.cal_a_cell,self.cal_b_cell) #Read Fert Weight
-            #speed machine
+            
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=self.real_mach_speed
@@ -582,21 +580,22 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             # 3G and LogFunctions
-            if self.aux==2 and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
-            if self.aux==4 and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
-            if self.aux==6 and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
-            if self.aux==8 and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
-            if self.aux==10 and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
-            if self.aux==12 and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
+            dt=int(4*self.time_control)
+            if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
+            if self.aux==2*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
+            if self.aux==3*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
+            if self.aux==4*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
+            if self.aux==5*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
+            if self.aux==6*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
             link='http://andrecoelho.tech/SemeaView/send_mysql.php?'
             str_data='LogID='+str(self.log_id)+'&Date='+str(self.date)+'&Time='+str(self.time)+'&MachineID='+self.machineID\
 +'&FieldID='+self.fieldID+'&Lati='+str(self.lat)+'&Longi='+str(self.long)+'&XUtm='+str(self.lat_utm)+'&YUtm='+str(self.long_utm)+'&Speed='+\
 str(self.speed)+'&OpCap='+str(self.opcap)+'&TimeOperation='+str(self.time_operation)+'&Population='+str(self.popseed)+'&FertRatio='+\
 str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
-            if self.aux==18 and self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+str_data+'\r'))
-            if self.aux==23 and self.cb_remote.isChecked():
+            if self.aux==9*dt and self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+str_data+'\r'))
+            if self.aux==12*dt and self.cb_remote.isChecked():
                 sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
-                self.aux=13
+                self.aux=7*dt
             rec=sim800l.readline()
             rec=rec.decode('utf-8')
             if '+SAPBR:' in rec: QMessageBox.information(self,'3G',rec)

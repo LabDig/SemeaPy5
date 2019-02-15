@@ -75,7 +75,7 @@ def ReadWeight(cal_a,cal_b):
     global mass_filter,mass
     mass_filter=np.append(mass_filter,cal_a*(1.8*ADC.read(pinLoadCell))+cal_b)
     if len(mass_filter)==10:mass_filter=np.delete(mass_filter,0)
-    if len(mass_filter)>0: mass=round(np.mean(mass_filter),2)
+    if len(mass_filter)>0: mass=round(np.mean(mass_filter),1)
     return mass
 
 # Control the seed speed
