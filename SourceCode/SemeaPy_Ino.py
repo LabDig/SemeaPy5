@@ -23,17 +23,12 @@ GPIO.setup(pinOnOffButton, GPIO.IN)
 #UButton p Dynamic
 pinUpDyn="P9_12"
 GPIO.setup(pinUpDyn, GPIO.IN)
-#Wheel Encoder
-pinEncWhell="P8_11"
-GPIO.setup(pinEncWhell, GPIO.IN)
 #PWM Seed
 pinPWM_Seed="P8_13"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
-pinEncSeed="P9_29"
-GPIO.setup(pinEncSeed, GPIO.IN)
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
@@ -49,7 +44,7 @@ gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 #Arduino
-ino = serial.Serial("/dev/ttyACM0", 9600) # P9_21 P9_22
+ino = serial.Serial("/dev/ttyS2", 9600) # P9_21 P9_22
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
@@ -76,6 +71,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.calc_m_fert,self.last_wgt=0,0 #calc the mass exit in log function period
         self.aux,self.error=0,0#to 3g function, log and gps
         self.array_s,self.array_w=[],[] #mean speed filter
+        self.st_bt,self.last_st_bt=0,0
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.log_timer = QtCore.QTimer()
@@ -227,6 +223,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         PWM.cleanup()
         sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
         self.close()
+#
     def FitMap(self): self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio) # fit the map
     def ZoomOut(self): #zoom out
         self.zoom=self.zoom/2
@@ -260,7 +257,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
                 del content #clear memory
         else: QMessageBox.information(self,'Load Seed Map','No map')
-    #Increase and Decrease Values for the operation variables and show the actual value in QLine Edits
+#Increase and Decrease Values for the operation variables and show the actual value in QLine Edits
     def DecPop(self):
         self.popseed=self.popseed-5000
         self.ql_set_pop.setPlainText(str(self.popseed))
@@ -378,9 +375,9 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
 #   
 # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self):
-        self.popseed=self.popseed+10000
-        self.fert_rt=self.fert_rt+100
-        print ("din")
+        if self.cb_seed_fix.isChecked():self.popseed=self.popseed+10000
+        if self.cb_fert_fix.isChecked():self.fert_rt=self.fert_rt+100
+#
 #Calibrate Seed and Fert
     def CalSeed(self):
         print (self.real_rot_seed,self.dt_seed_cal)
@@ -470,7 +467,6 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.last_wgt=self.fert_wgt
         else:self.ql_logfile.setPlainText("Not saving")
 #
-  
     def SpeedFunction(self):
             #speed
             vel=ino.readline()
@@ -487,21 +483,25 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if  self.real_rot_seed>0.1 and self.change_popseed is False:
                 self.real_rot_seed,self.array_s=self.MeanFilter(self.real_rot_seed,self.array_s)
                 self.real_rot_seed=round(self.real_rot_seed,2)
-
+# Average Mean Filter for speeds
     def MeanFilter(self,value,array):
         array=np.append(array,value)
         if len(array)>5:np.append(array,0)
         return np.mean(array),array
-        
 # Function that control the seed and fert application motor            
     def ControlFunction(self):
         if GPIO.input(pinOnOffButton):
+            #Button For Dyanmics Teste
+            self.st_bt=GPIO.input(pinUpDyn)
+            if self.st_bt==1 and  self.last_st_bt==0:
+                self.IncPopFert()
+            self.last_st_bt=self.st_bt
+            #
             if self.status=='A': #plot in graph if have gps signal
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                 self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             #tank mass
             self.fert_wgt=operation.ReadWeight(self.cal_a_cell,self.cal_b_cell) #Read Fert Weight
-            
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=self.real_mach_speed
@@ -579,7 +579,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.lb_datetime.setText(self.time)
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
-            # 3G and LogFunctions
+            # 3G Send Datas
             dt=int(4*self.time_control)
             if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
             if self.aux==2*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
@@ -626,7 +626,6 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
             self.lb_status.setText("Desabilitado")
             sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
             self.aux=0
-
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():

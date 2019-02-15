@@ -11,6 +11,8 @@ pinPWM_Seed="P8_13"
 pinEnable_Seed="P8_10"
 pinPWM_Fert="P8_19"
 pinEnable_Fert="P8_9"
+PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
+PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 # Calc Fert Ratio
 def Fert(v,rate,spacing):
     fertybym=rate*spacing/10000.0

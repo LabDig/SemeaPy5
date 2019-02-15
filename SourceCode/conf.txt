@@ -1,12 +1,12 @@
 False
 
-True
-70000.0
+False
+0
 95
 False
 
-False
-0
+True
+800
 0.75
 False
 /root/SemeaPy5/SourceCode/M-1_F-1.txt
@@ -19,5 +19,5 @@ F-1
 2324.25093
 30.6936
 0.0
-5.1226
-2280
+5.14619
+2299
