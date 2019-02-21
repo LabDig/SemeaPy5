@@ -44,7 +44,7 @@ gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 #Arduino
-ino = serial.Serial("/dev/ttyS2", 9600) # P9_21 P9_22
+ino = serial.Serial("/dev/ttyUSB0", 9600,timeout=0.05) # P9_21 P9_22
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
@@ -72,6 +72,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.aux,self.error=0,0#to 3g function, log and gps
         self.array_s,self.array_w=[],[] #mean speed filter
         self.st_bt,self.last_st_bt=0,0
+        self.real_mach_speed=0;
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.log_timer = QtCore.QTimer()
@@ -85,7 +86,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.control_timer.start(self.time_control*1000) #Start Control Function
         self.log_timer.start(5000)
         self.gps_timer.start(1000)
-        self.ino_timer.start(200)
+        self.ino_timer.start(250)
         s='1'
         ino.write(s.encode())
         #GUI Buttons Configuration
@@ -219,8 +220,6 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         f.close()
         s='0'
         ino.write(s.encode())
-        GPIO.cleanup()
-        PWM.cleanup()
         sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
         self.close()
 #
@@ -471,10 +470,17 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #speed
             vel=ino.readline()
             vel=vel.decode('utf-8')
-            try:self.real_mach_speed,self.real_rot_seed=vel.split(',')
-            except:pass
-            self.real_mach_speed=2.0*float(self.real_mach_speed)
-            self.real_rot_seed=float(self.real_rot_seed)
+            print (vel)
+            self.real_mach_speed,self.real_rot_seed=vel.split(',')
+            self.real_mach_speed=int(self.real_mach_speed)
+            self.real_rot_seed=int(self.real_rot_seed)
+            #print (self.real_mach_speed,self.real_rot_seed)
+            '''
+            except:
+                self.lb_status.setText("Encoder Error")
+                self.real_mach_speed=0
+                self.real_rot_seed=0
+            
             if self.real_mach_speed>0.4 :
                 self.real_mach_speed,self.array_w=self.MeanFilter(self.real_mach_speed,self.array_w)
                 self.real_mach_speed=round(self.real_mach_speed,1)
@@ -483,6 +489,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if  self.real_rot_seed>0.1 and self.change_popseed is False:
                 self.real_rot_seed,self.array_s=self.MeanFilter(self.real_rot_seed,self.array_s)
                 self.real_rot_seed=round(self.real_rot_seed,2)
+            '''
 # Average Mean Filter for speeds
     def MeanFilter(self,value,array):
         array=np.append(array,value)
@@ -580,7 +587,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             # 3G Send Datas
-            dt=int(4*self.time_control)
+            dt=8 #2 s
             if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
             if self.aux==2*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
             if self.aux==3*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
