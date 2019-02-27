@@ -5,14 +5,15 @@ int st_w = 0;
 int ls_st_w = 0;
 int st_s = 0;
 int ls_st_s = 0;
-int last_ts = 0;
-int last_tw = 0;
-int vw = 0;
-int vs = 0;
-int tz_w = 0;
-int tz_s = 0;
-int t_c = 250;
-int previousMillis = 0;
+unsigned long last_ts;
+unsigned long last_tw;
+double vw;
+double vs;
+unsigned long tz_w;
+unsigned long tz_s;
+unsigned long t_c = 250;
+unsigned long previousMillis;
+unsigned long currentMillis;
 char rec;
 
 void setup() {
@@ -36,8 +37,8 @@ void loop() {
   if (st_w == 1 && ls_st_w == 0) tz_w = millis(); //for low spped
   if (st_s == 0 && ls_st_s == 1) tz_s = millis(); //up border
   if (st_s == 1 && ls_st_s == 0) tz_s = millis();
-  if ((millis() - tz_s) < last_ts && last_ts < 600) vs = last_ts;
-  if ((millis() - tz_w) < last_tw && last_tw < 600) vw = last_tw; //significa que passou pela borda
+  if ((millis() - tz_s) < last_ts && last_ts < 600) vs = (1.0/8.0)/(last_ts/1000.0);
+  if ((millis() - tz_w) < last_tw && last_tw < 600) vw = (2.02/8.0)/(last_tw/1000.0); //significa que passou pela borda
   if (millis()-tz_w>600) vw=0;
   if (millis()-tz_s>700) vs=0;
   //atualiza variaveis
@@ -46,7 +47,7 @@ void loop() {
   ls_st_w = st_w;
   ls_st_s = st_s;
 
-  unsigned long currentMillis = millis();
+  currentMillis = millis();
   if (currentMillis - previousMillis > t_c) {
     previousMillis = currentMillis;
     if (rec == '1') {
@@ -55,13 +56,8 @@ void loop() {
       Serial.println(vs);
     }
   }
-
 }
 
-double CalSpeed(long t1, long t2) {
-  if (t1 > 50 && t2 > 50  && t1 / t2 > 0.9 && t1 / t2 < 1.1) {
-    return (1.0 / 8.0) / ((t1 + t2) / 2000.0);
-  }
-}
+
 
 

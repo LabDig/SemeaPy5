@@ -21,6 +21,25 @@ def Fert(v,rate,spacing):
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
     return round(3.3*seeds*v/holes,2),round(seeds,1)
+#Check if a point it is inside or outside to polygon
+def ray_tracing(x,y,poly):
+    n = len(poly)
+    inside = False
+    p2x = 0.0
+    p2y = 0.0
+    xints = 0.0
+    p1x,p1y = poly[0]
+    for i in range(n+1):
+        p2x,p2y = poly[i % n]
+        if y > min(p1y,p2y):
+            if y <= max(p1y,p2y):
+                if x <= max(p1x,p2x):
+                    if p1y != p2y:
+                        xints = (y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x
+                    if p1x == p2x or x <= xints:
+                        inside = not inside
+        p1x,p1y = p2x,p2y
+    return inside
 # Find the neart point in the map (for fert and seed)
 def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
     minDist=9999999

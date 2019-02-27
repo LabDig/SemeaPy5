@@ -1,4 +1,4 @@
-#02 de fev
+#27 de fev
 # -*- coding: utf-8 -*-
 #!/usr/bin/python3
 import os
@@ -9,6 +9,7 @@ from PyQt5 import QtGui,QtCore
 import time
 from scipy import stats
 import numpy as np
+import shapefile
 # import python files
 from seeder_ui import Ui_SEMEA #gui
 import operation #calculations
@@ -25,13 +26,13 @@ pinUpDyn="P9_12"
 GPIO.setup(pinUpDyn, GPIO.IN)
 #PWM Seed
 pinPWM_Seed="P8_13"
-PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
+#PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 pinEnable_Seed="P8_10"
 GPIO.setup(pinEnable_Seed, GPIO.OUT)
 GPIO.output(pinEnable_Seed,GPIO.LOW)
 #PWM Fertilizer
 pinPWM_Fert="P8_19"
-PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
+#PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
 pinEnable_Fert="P8_9"
 GPIO.setup(pinEnable_Fert, GPIO.OUT)
 GPIO.output(pinEnable_Fert,GPIO.LOW)
@@ -44,7 +45,7 @@ gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
 #Arduino
-ino = serial.Serial("/dev/ttyUSB0", 9600,timeout=0.05) # P9_21 P9_22
+ino = serial.Serial("/dev/ttyS2", 9600,timeout=0.05) # P9_21 P9_22
 #
 class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def __init__(self,parent=None):
@@ -73,6 +74,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.array_s,self.array_w=[],[] #mean speed filter
         self.st_bt,self.last_st_bt=0,0
         self.real_mach_speed=0;
+        self.last_vw,self.last_vs=0,0
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.log_timer = QtCore.QTimer()
@@ -82,11 +84,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.log_timer.timeout.connect(self.LogFunction)
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.ino_timer.timeout.connect(self.SpeedFunction)
-        self.time_control=0.25 #in s
+        self.time_control=0.5 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
-        self.log_timer.start(5000)
+        self.log_timer.start(1000)
         self.gps_timer.start(1000)
-        self.ino_timer.start(250)
+        self.ino_timer.start(1000)
+        #send char to arduino, to start send data
         s='1'
         ino.write(s.encode())
         #GUI Buttons Configuration
@@ -99,6 +102,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.scene=QtWidgets.QGraphicsScene()
         self.gv.scale(1,-1)
         self.gv.setScene(self.scene)
+        self.Ypen,self.Ybrush=QtGui.QPen(QtCore.Qt.yellow),QtGui.QBrush(QtCore.Qt.yellow)
         self.Rpen,self.Rbrush=QtGui.QPen(QtCore.Qt.red),QtGui.QBrush(QtCore.Qt.red)
         self.Bpen,self.Bbrush=QtGui.QPen(QtCore.Qt.blue),QtGui.QBrush(QtCore.Qt.blue)
         self.Gpen,self.Gbrush=QtGui.QPen(QtCore.Qt.green),QtGui.QBrush(QtCore.Qt.green)
@@ -180,14 +184,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ql_set_fert.setPlainText(str(self.fert_rt))
         self.ql_set_pop.setPlainText(str(self.popseed))
         # load and Reload the Fert and Seed Map, when map mode is active
-        self.cb_seed_map.stateChanged.connect(self.LoadSeedMap)
         if self.cb_seed_map.isChecked():
             self.LoadSeedMap()
-        else: self.seedfile_name=""
-        self.cb_fert_map.stateChanged.connect(self.LoadFertMap)
         if self.cb_fert_map.isChecked():
            self.LoadFertMap()
-        else: self.fertfile_name=""
 ###
 #Functions
 # Im main Tab
@@ -219,6 +219,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(str(self.log_id)+"\n")
         f.close()
         s='0'
+        GPIO.cleanup()
+        PWM.cleanup()
         ino.write(s.encode())
         sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
         self.close()
@@ -232,9 +234,18 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.gv.scale(self.zoom,self.zoom)
 #In Setup Operation
      # Setting the map file name
-    def LoadSeedFile(self): self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.txt")[0]
-    def LoadFertFile(self): self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.txt")[0]
-    def LoadSeedMap(self): #Load Seed Map of file and show in Graphics View
+    def LoadSeedFile(self):
+        self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.txt")[0]
+        self.LoadSeedMap()
+    def LoadFertFile(self):
+        self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.txt")[0]
+        self.LoadSeedMap()
+    def LoadFertMap(self): #Load Seed Map of file and show in Graphics View
+
+
+
+
+
         if self.cb_seed_map.isChecked():
             if ".txt" in self.seedfile_name:
                 content=None # clear variable for security
@@ -244,7 +255,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
                 for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
                 self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
                 del content #clear memory
-            else: QMessageBox.information(self,'Load Seed Map','No map')
+        else: QMessageBox.information(self,'Load Seed Map','No map')
     def LoadFertMap(self): #Load Fert Map of file and show in Graphics View
         if self.cb_fert_map.isChecked():
             if ".txt" in self.fertfile_name:
@@ -310,6 +321,7 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
         self.fertfile_name=""
         self.seedfile_name=""
         self.log_id=0
+        self.scene.clear()
 #calibrate the Load Cell of Fert Tank
     def SaveCal(self): #Save the point for calibration.
         sum_wgt=0 #Read 20 values for voltage, calculate the mean, show in Line Edit and save in array
@@ -470,31 +482,24 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #speed
             vel=ino.readline()
             vel=vel.decode('utf-8')
-            print (vel)
-            self.real_mach_speed,self.real_rot_seed=vel.split(',')
-            self.real_mach_speed=int(self.real_mach_speed)
-            self.real_rot_seed=int(self.real_rot_seed)
-            #print (self.real_mach_speed,self.real_rot_seed)
-            '''
-            except:
-                self.lb_status.setText("Encoder Error")
-                self.real_mach_speed=0
-                self.real_rot_seed=0
-            
-            if self.real_mach_speed>0.4 :
-                self.real_mach_speed,self.array_w=self.MeanFilter(self.real_mach_speed,self.array_w)
-                self.real_mach_speed=round(self.real_mach_speed,1)
-            else:self.real_mach_speed=0
-            if  self.change_popseed is True:  self.array_s=[]
-            if  self.real_rot_seed>0.1 and self.change_popseed is False:
-                self.real_rot_seed,self.array_s=self.MeanFilter(self.real_rot_seed,self.array_s)
-                self.real_rot_seed=round(self.real_rot_seed,2)
-            '''
-# Average Mean Filter for speeds
-    def MeanFilter(self,value,array):
-        array=np.append(array,value)
-        if len(array)>5:np.append(array,0)
-        return np.mean(array),array
+            try:
+                self.real_mach_speed,self.real_rot_seed=vel.split(',')
+                self.real_mach_speed=float(self.real_mach_speed)
+                self.real_rot_seed=float(self.real_rot_seed)
+            except:pass
+            self.array_w=np.append(self.array_w,self.real_mach_speed)
+            self.array_s=np.append(self.array_s,self.real_rot_seed)
+            if len(self.array_w)>2:self.real_mach_speed=round(np.median(self.array_w),1)
+            if len(self.array_s)>2:self.real_rot_seed=round(np.median(self.array_s),1)
+            if len(self.array_w)>3:self.array_w=np.delete(self.array_w,0)
+            if len(self.array_s)>3:self.array_s=np.delete(self.array_s,0)
+            if len(self.array_w)>2 and self.array_w[-1]<0.4:
+                self.array_w=[]
+                self.real_mach_speed=0.0
+            if len(self.array_s)>2 and self.array_s[-1]<0.1:
+                self.array_s=[]
+                self.real_rot_seed=0.0
+         
 # Function that control the seed and fert application motor            
     def ControlFunction(self):
         if GPIO.input(pinOnOffButton):
@@ -587,9 +592,11 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             # 3G Send Datas
-            dt=8 #2 s
+            dt=4 #
             if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
-            if self.aux==2*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
+            if self.aux==2*dt and  self.cb_remote.isChecked():
+                sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
+                self.ql_remote_status.setPlainText("Starting..")
             if self.aux==3*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=1,1'+'\r'))
             if self.aux==4*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
             if self.aux==5*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
@@ -620,7 +627,7 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
                     self.aux=0
                     self.ql_remote_status.setPlainText("Disable")
                     sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
-            if self.error==3:
+            if self.error==5:
                     self.error=0
                     self.rm_st="RESET"
                     sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
@@ -630,9 +637,7 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
         else: # If button is off
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)
-            self.lb_status.setText("Desabilitado")
-            sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
-            self.aux=0
+            self.lb_status.setText("Disable")
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():
