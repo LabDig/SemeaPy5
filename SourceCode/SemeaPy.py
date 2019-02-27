@@ -61,16 +61,18 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.seed_mode,self.fert_mode,self.fertbym,self.seedbym="OFF","OFF",0,0, #operation modes
         self.rot_seed,self.real_rot_seed=0.0,0.0 #seed speed
         self.wgt_voltage_cal=np.zeros(4) #calibrate load cell
-        self.dt_seed_cal,self.dt_fert_cal=0,0 #variables for test 
+        self.dt_seed_cal,self.dt_fert_cal=0,0 #variables for test and calibrate speed
         self.change_popseed=False #variables for dynamic test and check if population changet
         self.last_popseed,self.last_fert_rt=0,0 #for ckeck if population and fert ratio change
         self.dt_seed,self.last_dt_seed_cal=-1,-1  #for ckeck if population and fert ratio change
+        self.dt_fert=0;
         self.n_machine_id,self.n_field_id=1,1 #number auxiliar for setting machine and field id
         self.lat_used,self.long_used=0,0 #lat e long used in Map aplication
         self.fert_rt_cal=0 #fert ratio to calibration distribuitor
-        self.rm_st,self.rec='','' #remote status and string send by smartphone
+        self.rm_st='' #remote status
         self.calc_m_fert,self.last_wgt=0,0 #calc the mass exit in log function period
         self.aux,self.error=0,0#to 3g function, log and gps
+        #speed filter
         self.array_s,self.array_w=[],[] #mean speed filter
         self.st_bt,self.last_st_bt=0,0
         self.real_mach_speed=0;
@@ -95,22 +97,24 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         #GUI Buttons Configuration
         #Main
         self.exit.clicked.connect(self.Close)  #exit button
-        self.bt_fit.clicked.connect(self.FitMap) #fit view button
-        self.m_view.clicked.connect(self.ZoomOut) # zoom out button
-        self.p_view.clicked.connect(self.ZoomIn) #zoom in button
         #grapghs view configuration
         self.scene=QtWidgets.QGraphicsScene()
         self.gv.scale(1,-1)
         self.gv.setScene(self.scene)
+        #colors
+        self.Mpen,self.Mbrush=QtGui.QPen(QtCore.Qt.magenta),QtGui.QBrush(QtCore.Qt.magenta)
         self.Ypen,self.Ybrush=QtGui.QPen(QtCore.Qt.yellow),QtGui.QBrush(QtCore.Qt.yellow)
         self.Rpen,self.Rbrush=QtGui.QPen(QtCore.Qt.red),QtGui.QBrush(QtCore.Qt.red)
         self.Bpen,self.Bbrush=QtGui.QPen(QtCore.Qt.blue),QtGui.QBrush(QtCore.Qt.blue)
         self.Gpen,self.Gbrush=QtGui.QPen(QtCore.Qt.green),QtGui.QBrush(QtCore.Qt.green)
         self.Kpen,self.Kbrush=QtGui.QPen(QtCore.Qt.black),QtGui.QBrush(QtCore.Qt.black)
-        self.zoom=1
+        self.pen_color=[self.Mpen,self.Ypen,self.Rpen,self.Bpen]
+        self.brush_color=[self.Mbrush,self.Ybrush,self.Rbrush,self.Gbrush]
         #Setup Operation
         self.bt_load_seed.clicked.connect(self.LoadSeedFile) # load seed map
         self.bt_load_fert.clicked.connect(self.LoadFertFile) # load fert map
+        self.pop_off.clicked.connect(self.OffPop)
+        self.fert_off.clicked.connect(self.OffFert)
         self.m_pop.clicked.connect(self.DecPop)  #buttons plus and minus values for variavel operations
         self.p_pop.clicked.connect(self.IncPop)
         self.m_germ.clicked.connect(self.DecGer)
@@ -142,14 +146,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.conffile_name=os.path.join(self.dir,"conf.txt")
         with open(self.conffile_name, "r",encoding='latin-1') as f:
-            self.st_chk=(f.readline()) #map seed mode
+            self.seed_mode=(f.readline()) #seed mode
             self.seedfile_name=f.readline()
-            self.st_chk_2=(f.readline()) #fix seed mode
             self.popseed=float(f.readline())
             self.seed_germ=int(f.readline())
-            self.st_chk_3=(f.readline()) #map fert mode
+            self.fert_mode=(f.readline()) #fert mode
             self.fertfile_name=f.readline()
-            self.st_chk_4=(f.readline()) #fix map mode
             self.fert_rt=float(f.readline())
             self.row_spacing=float(f.readline())
             self.st_cb_remote=f.readline()
@@ -167,15 +169,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.log_id=int(f.readline())
         f.close()
         #Setup the operation, with configuration of last use
+        self.seed_mode=self.seed_mode.rstrip()
+        self.fert_mode=self.fert_mode.rstrip()
         self.seedfile_name=self.seedfile_name.rstrip()
         self.fertfile_name=self.fertfile_name.rstrip()
         self.logfile_name=self.logfile_name.rstrip()
         self.machineID=self.machineID.rstrip()
         self.fieldID=self.fieldID.rstrip()
-        self.cb_seed_map.setCheckState ("True" in self.st_chk )
-        self.cb_seed_fix.setCheckState ("True" in self.st_chk_2)
-        self.cb_fert_map.setCheckState ("True" in self.st_chk_3)
-        self.cb_fert_fix.setCheckState ("True" in self.st_chk_4)
         self.cb_remote.setCheckState ("True" in self.st_cb_remote)
         self.ql_machine_id.setPlainText(str(self.machineID))
         self.ql_field_id.setPlainText(str(self.fieldID))
@@ -183,25 +183,21 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ql_germ.setPlainText(str(self.seed_germ))
         self.ql_set_fert.setPlainText(str(self.fert_rt))
         self.ql_set_pop.setPlainText(str(self.popseed))
-        # load and Reload the Fert and Seed Map, when map mode is active
-        if self.cb_seed_map.isChecked():
-            self.LoadSeedMap()
-        if self.cb_fert_map.isChecked():
-           self.LoadFertMap()
+        # Reload the Fert and Seed Map, when map mode is active
+        if "MAP" in self.seed_mode: self.lat_map_seed,self.long_map_seed,self.pop_map_seed=self.LoadMap(self.seedfile_name)
+        if "MAP" in self.fert_mode:self.lat_map_fert,self.long_map_fert,self.map_fertrt=self.LoadMap(self.fertfile_name)
 ###
 #Functions
 # Im main Tab
 #   
     def Close(self): #save configuration inf file, clear GPIO, stop timer and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
-            f.write(str(self.cb_seed_map.isChecked())+"\n")
+            f.write(self.seed_mode)+"\n")
             f.write(self.seedfile_name+"\n")
-            f.write(str(self.cb_seed_fix.isChecked())+"\n")
             f.write(str(self.popseed)+"\n")
             f.write(str(self.seed_germ)+"\n")
-            f.write(str(self.cb_fert_map.isChecked())+"\n")    
+            f.write(self.fert_mode)+"\n")
             f.write(self.fertfile_name+"\n")
-            f.write(str(self.cb_fert_fix.isChecked())+"\n")
             f.write(str(self.fert_rt)+"\n")
             f.write(str(self.row_spacing)+"\n")
             f.write(str(self.cb_remote.isChecked())+"\n")
@@ -221,57 +217,65 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         s='0'
         GPIO.cleanup()
         PWM.cleanup()
-        ino.write(s.encode())
-        sim800l.write(str.encode('AT+SAPBR=0,1'+'\r'))
+        ino.write(s.encode()) #stop arduino send
+        sim800l.write(str.encode('AT+SAPBR=0,1'+'\r')) #disable 3G GSM
         self.close()
 #
-    def FitMap(self): self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio) # fit the map
-    def ZoomOut(self): #zoom out
-        self.zoom=self.zoom/2
-        self.gv.scale(self.zoom,self.zoom)
-    def ZoomIn(self): #zoom in
-        self.zoom=self.zoom*2
-        self.gv.scale(self.zoom,self.zoom)
 #In Setup Operation
      # Setting the map file name
     def LoadSeedFile(self):
-        self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.txt")[0]
-        self.LoadSeedMap()
+        self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.shp")[0]
+        self.lat_map_seed,self.long_map_seed,self.pop_map_seed=self..LoadMap(self.seedfile_name)
+        self.seed_mode="MAP" #automaticly set seed mode to MAP
     def LoadFertFile(self):
-        self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.txt")[0]
-        self.LoadSeedMap()
-    def LoadFertMap(self): #Load Seed Map of file and show in Graphics View
+        self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.shp")[0]
+        self.lat_map_fert,self.long_map_fert,self.map_fertrt=self.LoadMap(self.fertfile_name)
+        self.fert_mode="MAP" #automaticly set fert mode to MAP
+    #
+    #Load maps show in Graphics View
+    def LoadMap(self,filename): 
+        polygon = shapefile.Reader(filename)
+        if (polygon.shapeType == shapefile.POLYGON): #check if shape is polygon type
+            n=len (polygon) #polygon numbers
+            subpolygon = polygon.shapes()
+            subpolygon_atribute = polygon.records() #contain do atributo em cada polygon
+            pixel=5 #pixel size to transfort polygon to raster
+            #vector to return the raster x,y and atribute
+            xgrid=[]
+            ygrid=[]
+            zvalue=[]
+            for i in range(n): #for each subpolygon in shape
+                subpolygon_points=subpolygon[i].points #points in each subpolgony
+                subpolygon_points=np.array(subpolygon_points) # to numpy
+                num=len(subpolygon_points) #points to form each subpolygon
+                atribute=subpolygon_atribute[i][2] #atribute contain in each subpolygon
+                nx=int((max(subpolygon_points[:,0])-min(subpolygon_points[:,0]))/pixel)+1
+                ny=int((max(subpolygon_points[:,1])-min(subpolygon_points[:,1]))/pixel)+1
+                for ii in range(nx):
+                    for jj in range(ny):
+                    x1=min(subpolygon_points[:,0])+(ii)*pixel
+                    y1=min(subpolygon_points[:,1])+(jj)*pixel
+                    if(operation.ray_tracing(x1,y1,subpolygon_points)==True): # if poit grid is inside contour
+                        xgrid.append(x1)
+                        ygrid.append(y1)
+                        zvalue.append(atribute)
+                        #plot in graphics view the map
+                        self.scene.addRect(x1,y1,1,1,self.pen_color[i],self.brush_color[i])
+            self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
+            return xgrid,ygrid,zvalue
+        # if error in shapefile
+        else :
+            QMessageBox.information(self,'Load Map','No Polygon shapefile')
+            return 0,0,0
 
-
-
-
-
-        if self.cb_seed_map.isChecked():
-            if ".txt" in self.seedfile_name:
-                content=None # clear variable for security
-                with open(self.seedfile_name, "r",encoding='latin-1') as f: content = f.read().splitlines()
-                f.close()
-                self.lat_map_seed,self.long_map_seed,self.pop_map_seed=operation.ReadMapFile(content)
-                for i in range(len(self.lat_map_seed)):self.scene.addRect(self.lat_map_seed[i],self.long_map_seed[i],1,1,self.Rpen,self.Rbrush)
-                self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-                del content #clear memory
-        else: QMessageBox.information(self,'Load Seed Map','No map')
-    def LoadFertMap(self): #Load Fert Map of file and show in Graphics View
-        if self.cb_fert_map.isChecked():
-            if ".txt" in self.fertfile_name:
-                content=None # clear variable for security
-                with open(self.fertfile_name, "r",encoding='latin-1') as f:  content = f.read().splitlines()
-                f.close()
-                self.lat_map_fert,self.long_map_fert,self.map_fertrt=operation.ReadMapFile(content)
-                for i in range(len(self.lat_map_fert)):self.scene.addRect(self.lat_map_fert[i],self.long_map_fert[i],1,1,self.Bpen,self.Bbrush)
-                self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-                del content #clear memory
-        else: QMessageBox.information(self,'Load Seed Map','No map')
 #Increase and Decrease Values for the operation variables and show the actual value in QLine Edits
     def DecPop(self):
+        self.seed_mode="FIX" #automaticly set seed mode to FIX
         self.popseed=self.popseed-5000
+        if self.popseed<0:self.popseed=0
         self.ql_set_pop.setPlainText(str(self.popseed))
     def IncPop(self):
+        self.seed_mode="FIX" #automaticly set seed mode to 
         self.popseed=self.popseed+5000
         self.ql_set_pop.setPlainText(str(self.popseed))
     def DecGer(self):
@@ -281,9 +285,12 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.seed_germ=self.seed_germ+1
         self.ql_germ.setPlainText(str(self.seed_germ))
     def DecFert(self):
+        self.fert_mode="FIX" #automaticly set fert mode to FIX
         self.fert_rt=self.fert_rt-25
+        if self.fert_rt<0:self.fert_rt=0
         self.ql_set_fert.setPlainText(str(self.fert_rt))
     def IncFert(self):
+        self.fert_mode="FIX" #automaticly set fert mode to 
         self.fert_rt=self.fert_rt+25
         self.ql_set_fert.setPlainText(str(self.fert_rt))
     def DecRow(self):
@@ -292,6 +299,22 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def IncRow(self):
         self.row_spacing=self.row_spacing+0.1
         self.ql_row_spacing.setPlainText(str(self.row_spacing))
+    def OffPop(self):
+        self.popseed=0
+        self.seed_mode="OFF"
+    def OffFert(self):
+        self.fert_rt=0
+        self.fert_mode="OFF"
+        #   
+    # Incread and Decrease Population and Fert Ratio for a Dynamic Test
+    def IncPopFert(self):
+        if "FIX" in self.seed_mode:
+            self.popseed=self.popseed+10000
+            self.ql_set_pop.setPlainText(str(self.popseed))
+        if "FIX" in self.fert_mode:
+            self.fert_rt=self.fert_rt+100
+            self.ql_set_fert.setPlainText(str(self.fert_rt))
+#
 #In Operation Monitoration
     #Define the number of Field and Machine ID
     def DecMacID(self):
@@ -322,7 +345,7 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
         self.seedfile_name=""
         self.log_id=0
         self.scene.clear()
-#calibrate the Load Cell of Fert Tank
+    #calibrate the Load Cell of Fert Tank
     def SaveCal(self): #Save the point for calibration.
         sum_wgt=0 #Read 20 values for voltage, calculate the mean, show in Line Edit and save in array
         for i in range(0,20):
@@ -383,12 +406,7 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
         if self.cb_speed_fert.isChecked():
             self.fert_rt_cal=self.fert_rt_cal+1.0
             self.ql_fert_cal.setPlainText(str(self.fert_rt_cal))
-#   
-# Incread and Decrease Population and Fert Ratio for a Dynamic Test
-    def IncPopFert(self):
-        if self.cb_seed_fix.isChecked():self.popseed=self.popseed+10000
-        if self.cb_fert_fix.isChecked():self.fert_rt=self.fert_rt+100
-#
+
 #Calibrate Seed and Fert
     def CalSeed(self):
         print (self.real_rot_seed,self.dt_seed_cal)
@@ -452,11 +470,13 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
                 self.nmea=self.nmea.decode('utf-8')
         self.date,self.time,self.lat_utm,self.long_utm,self.lat,self.long,self.status=operation.ReadGPS(self.nmea)
         self.nmea=''
-        #Search Neigbhor for Map based aplication
+        #Search Neigbhor for Map based aplication, and plot the map point used in graphics view
         if "MAP" in self.seed_mode:
             self.popseed,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
+            self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
         if "MAP" in self.fert_mode:
             self.fert_rt,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
+            self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
 #    
     def LogFunction(self): # Function for generate a log file
         if GPIO.input(pinOnOffButton):
@@ -478,6 +498,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.last_wgt=self.fert_wgt
         else:self.ql_logfile.setPlainText("Not saving")
 #
+# Read Speed from Arduino and process
     def SpeedFunction(self):
             #speed
             vel=ino.readline()
@@ -499,9 +520,11 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if len(self.array_s)>2 and self.array_s[-1]<0.1:
                 self.array_s=[]
                 self.real_rot_seed=0.0
-         
+###
+###
 # Function that control the seed and fert application motor            
     def ControlFunction(self):
+        #
         if GPIO.input(pinOnOffButton):
             #Button For Dyanmics Teste
             self.st_bt=GPIO.input(pinUpDyn)
@@ -509,55 +532,35 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
                 self.IncPopFert()
             self.last_st_bt=self.st_bt
             #
-            if self.status=='A': #plot in graph if have gps signal
+            if self.status=='A': #plot in graph the actual position
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
                 self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
             #tank mass
             self.fert_wgt=operation.ReadWeight(self.cal_a_cell,self.cal_b_cell) #Read Fert Weight
+            #used encoder speed ou simulated spped
             if self.cb_motion_simulate.isChecked(): #Use a simulated Speed (For tests) or read from the encoder
                 self.speed=float(self.ql_sim_speed.toPlainText()) 
             else: self.speed=self.real_mach_speed
             #
             self.disk_hole=int(self.list_holes.currentText()) #Read Hole Disk
+            ###
+            ###
             ###Seeder Distributor###
-            if self.cb_seed_map.isChecked() and len(self.lat_map_seed)>1 and self.status=='A': #Map mode is active, have map and gps signal
-                self.seed_mode="MAP"
-                # find in the map the point nearst to atual point. The return it's the population and the map point used
-                #In GPS Function
-                if self.lat_used>0:self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
-            elif self.cb_seed_fix.isChecked(): #Fix seed distribuition rate
-                self.seed_mode="FIX"
-            elif self.cb_seed_fix.isChecked() and self.cb_seed_map.isChecked(): #if two mode is checked
-                self.cb_seed_fix.setCheckState (False)
-                self.cb_seed_map.setCheckState (False)
-            else:  
-                self.seed_mode="OFF"
-                self.popseed=0
+
             #check if population change or duty cicle change ==> reset encoder seed speed variable
             if self.popseed!=self.last_popseed or self.dt_seed_cal!=self.last_dt_seed_cal:
                 self.change_popseed=True
             else :self.change_popseed=False
             self.last_popseed=self.popseed
             self.last_dt_seed_cal=self.dt_seed_cal
+
             #Calcute and Control Speed Motor
             if self.cb_speed_cal.isChecked() is False: #if test function is not active
                 self.rot_seed,self.seedbym=operation.Seeder(self.speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
                 self.dt_seed=operation.ControlSpeedSeed(self.change_popseed,self.rot_seed,self.real_rot_seed,self.cal_a_seed,self.cal_b_seed)
+            ##
             ####Fertilizer Distribution###
-            #
-            if self.cb_fert_map.isChecked() and len(self.lat_map_fert)>1 and self.status=='A':#Map mode is active, have map and gps signal
-                self.fert_mode="MAP"
-                # find in the map the point nearst to atual point. The return it's the population and the map point used
-                #In GPS Function
-                if self.lat_used>0:self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
-            elif self.cb_fert_fix.isChecked(): #Fix seed distribuition rate
-                self.fert_mode="FIX"
-            elif self.cb_fert_fix.isChecked() and self.cb_fert_map.isChecked(): #if two mode is checked
-                self.cb_fert_fix.setCheckState (False)
-                self.cb_fert_map.setCheckState (False)
-            else:
-                self.fert_mode="OFF"
-                self.fert_rt=0
+
             #check if fertilizer ratio change ==> for use in dynamic calibration (future development)
             if self.fert_rt!=self.last_fert_rt:
                 self.change_fertrt=True
@@ -567,16 +570,19 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             #Calcute and Control Speed Motor
             if self.cb_speed_fert.isChecked() is False:
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
-                operation.ControlSpeedFert(self.cal_a_fert,self.cal_b_fert,self.fertbys)
-            #cal mass distribution (in log periodo =10 s)
+                self.dt_fert=operation.ControlSpeedFert(self.cal_a_fert,self.cal_b_fert,self.fertbys)
+            #cal mass distribution (in log periodo)
             self.calc_m_fert=self.calc_m_fert+self.fertbys*self.time_operation #in kg => reset in LogFunction
+
             #calculate operational capability and area 
+            #
             self.inst_area=self.row_spacing*self.speed*self.time_control #in ha
             self.area=round(self.area+self.inst_area/10000,2) #in h2
             self.inst_time=round(self.time_control/3600.0,5) #in h
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
             self.opcap=round(self.area/(self.time_operation),3) # in ha/h
             self.inst_opcap=round(self.inst_area/self.inst_time,3)
+
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))
             self.ql_seed.setPlainText(str(self.popseed))
@@ -587,13 +593,15 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.ql_area.setPlainText(str(self.area))
             self.ql_opcap.setPlainText(str(self.time_operation))
             self.lb_status.setText('CALC'+str(self.rot_seed)+' REAL:'+str(self.real_rot_seed)+'Dt:'+str(self.dt_seed))
-            if self.dt_seed<40.0: self.lb_status.setText("Low Seed Speed")
+            if not "OFF" in self.seed_mode and self.dt_seed<40.0: self.lb_status.setText("Low speed in Seed Motor")
+            if not "OFF" in self.fert_mode and self.dt_fert<40.0: self.lb_status.setText("Low speed in Fert Motor")
             self.lb_datetime.setText(self.time)
+
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             # 3G Send Datas
-            dt=4 #
-            if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
+            dt=2/time_control #  5*dt/time_control must  10 s
+             if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
             if self.aux==2*dt and  self.cb_remote.isChecked():
                 sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
                 self.ql_remote_status.setPlainText("Starting..")
@@ -638,6 +646,14 @@ str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
             GPIO.output(pinEnable_Seed,GPIO.LOW)
             GPIO.output(pinEnable_Fert,GPIO.LOW)
             self.lb_status.setText("Disable")
+            self.ql_speed.setPlainText("")
+            self.ql_seed.setPlainText("")
+            self.ql_pdop.setPlainText("")
+            self.ql_fert_rt.setPlainText("")
+            self.ql_fert_wgt.setPlainText("")
+            self.ql_area.setPlainText("")
+            self.ql_opcap.setPlainText("")
+            self.lb_datetime.setText("")
 #Run the app:
 if __name__ == '__main__':
     if not QtWidgets.QApplication.instance():

@@ -5,7 +5,7 @@ import numpy as np
 import Adafruit_BBIO.GPIO as GPIO
 import Adafruit_BBIO.ADC as ADC
 import Adafruit_BBIO.PWM as PWM
-
+#pins
 pinLoadCell="P9_33"
 pinPWM_Seed="P8_13"
 pinEnable_Seed="P8_10"
@@ -13,14 +13,17 @@ pinPWM_Fert="P8_19"
 pinEnable_Fert="P8_9"
 PWM.start(pinPWM_Seed,0, 1000.0) #pin, duty,frequencia
 PWM.start(pinPWM_Fert,0, 1000.0) #pin, duty,frequencia
+
 # Calc Fert Ratio
 def Fert(v,rate,spacing):
     fertybym=rate*spacing/10000.0
     return round(fertybym,3),round(fertybym*v,3)
+
 #Calc Seed Ratio
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
     return round(3.3*seeds*v/holes,2),round(seeds,1)
+
 #Check if a point it is inside or outside to polygon
 def ray_tracing(x,y,poly):
     n = len(poly)
@@ -40,6 +43,7 @@ def ray_tracing(x,y,poly):
                         inside = not inside
         p1x,p1y = p2x,p2y
     return inside
+
 # Find the neart point in the map (for fert and seed)
 def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
     minDist=9999999
@@ -52,15 +56,7 @@ def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
             minDist=distance
             idminDist=i
     return pop_map[idminDist],x_map[idminDist],y_map[idminDist]
-# Read the map file (seed and fert)
-def ReadMapFile(data):
-    x,y,z=[],[],[]
-    for i in range(1,len(data)-1):
-            Row=data[i].split(',')
-            x.append(float(Row[0])) 
-            y.append(float(Row[1]))
-            z.append(float(Row[2]))
-    return x,y,z
+
 # Split the gprm nmea sente
 lat,long,lat_utm,long_utm,status,date,time=0,0,0,0,'','','' #global variables for gps
 def ReadGPS(nmea):
@@ -100,6 +96,7 @@ def ReadWeight(cal_a,cal_b):
     return mass
 
 # Control the seed speed
+
 dt_corr=0 #global variable
 def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     global dt_corr
@@ -113,15 +110,18 @@ def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
         dt_corr=0
     dt_seed=(a*calc_rot+b)+dt_corr
     if dt_seed>100.0 :dt_seed=100.0
-    if dt_seed<40.0 :dt_seed=0#because the motor dont work in low speed
+    if dt_seed<40.0 :dt_seed=0.0#because the motor dont work in low speed
     PWM.set_duty_cycle(pinPWM_Seed,dt_seed)
     GPIO.output(pinEnable_Seed,GPIO.HIGH)
     return dt_seed
+
 # Control the seed speed     
 def ControlSpeedFert(a,b,fertbys):
     dt=a*fertbys+b # Experimental Calibration Equation
     if dt>100.0 : dt=100.0
-    if dt<40.0: dt=0.0
+    if dt<40.0: dt=0.0 #motor dont'work in low speed
     PWM.set_duty_cycle(pinPWM_Fert,dt)
-    GPIO.output(pinEnable_Fert,GPIO.HIGH) #motor dont'work in low speed
+    GPIO.output(pinEnable_Fert,GPIO.HIGH)
+    return dt
+    
     
