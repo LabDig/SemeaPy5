@@ -1,5 +1,5 @@
 OFF
-
+/root/SemeaPy5/Maps/poligono_mecanizacao_2.shp
 0
 95
 OFF
@@ -7,7 +7,7 @@ OFF
 0
 0.75
 False
-/root/SemeaPy5/SourceCode/teste.txt
+/root/SemeaPy5/SourceCode/M-1_F-1.txt
 M-1
 F-1
 18.55314192
@@ -16,6 +16,6 @@ F-1
 11.92217
 2324.25093
 30.6936
-0.0
-0.0
-0
+16.12
+0.01442
+25

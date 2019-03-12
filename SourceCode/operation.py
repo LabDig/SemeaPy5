@@ -19,10 +19,11 @@ def Fert(v,rate,spacing):
     fertybym=rate*spacing/10000.0
     return round(fertybym,3),round(fertybym*v,3)
 
-#Calc Seed Ratio
+#Calc Seed Ratio. Work only for spped >0.5 m/s
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
-    return round(3.3*seeds*v/holes,2),round(seeds,1)
+    if v>0.5 : return round(3.3*seeds*v/holes,2),round(seeds,1)
+    else : return 0.0,round(seeds,1)
 
 #Check if a point it is inside or outside to polygon
 def ray_tracing(x,y,poly):
@@ -45,27 +46,25 @@ def ray_tracing(x,y,poly):
     return inside
 
 # Find the neart point in the map (for fert and seed)
-def FindNeig(x_atual,y_atual,x_map,y_map,pop_map):
-    minDist=9999999
-    k=len(x_map)
-    for i in range(k):
-        deltaX=math.fabs(x_atual-x_map[i])
-        deltaY=math.fabs(y_atual-y_map[i])
-        distance=math.sqrt(deltaX*deltaX+deltaY*deltaY)
-        if distance<minDist:
-            minDist=distance
-            idminDist=i
-    return pop_map[idminDist],x_map[idminDist],y_map[idminDist]
+
+
+
+def FindNeig(x_atual,y_atual,poly_map,values):
+
+    for i in range(len(poly_map)):
+            if(ray_tracing(x_atual,y_atual,poly_map[i])==True):#valor do atributo #if point inside any polygon
+                atribute=values[i]
+                break 
+            else : atribute =0
+    return atribute
 
 # Split the gprm nmea sente
-lat,long,lat_utm,long_utm,status,date,time=0,0,0,0,'','','' #global variables for gps
+
 def ReadGPS(nmea):
-    global lat,long,lat_utm,long_utm,status,time,date
-    try:
-        nmea_array=nmea.split(',')
-        size=len(nmea_array)
-        status=nmea_array[2]  # check status
-        if status=='A' and size==13:
+    nmea_array=nmea.split(',')
+    size=len(nmea_array)
+    status=nmea_array[2]  # check status
+    if status=='A' and size==13:
             date=nmea_array[9][0]+nmea_array[9][1]+'/'+nmea_array[9][2]+nmea_array[9][3]+'/'+nmea_array[9][4]+nmea_array[9][5]
             time=nmea_array[1][0]+nmea_array[1][1]+':'+nmea_array[1][2]+nmea_array[1][3]+':'+nmea_array[1][4]+nmea_array[1][5]
             latMin=float(nmea_array[3][2:])/60   
@@ -79,9 +78,8 @@ def ReadGPS(nmea):
             utm_conv=utm.from_latlon(lat,long)
             lat_utm=float(utm_conv[0])
             long_utm=float(utm_conv[1])
-        if status=='V':
+    if status=='V':
             lat,long,lat_utm,long_utm,date,time=0,0,0,0,'',''
-    except: pass
     return date,time,lat_utm,long_utm,lat,long,status
 
 
@@ -106,7 +104,7 @@ def ControlSpeedSeed(st,calc_rot,real_rot,a,b):
     elif (calc_rot-real_rot)<-0.02 and  real_rot!=0.0:
         dt_corr=dt_corr+kp*(calc_rot-real_rot)
     else: dt_corr=dt_corr
-    if st is True:
+    if st is True or calc_rot<0.05: #reset dt_cor
         dt_corr=0
     dt_seed=(a*calc_rot+b)+dt_corr
     if dt_seed>100.0 :dt_seed=100.0

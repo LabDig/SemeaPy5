@@ -1,4 +1,4 @@
-#27 de fev
+#12 de marco
 # -*- coding: utf-8 -*-
 #!/usr/bin/python3
 import os
@@ -39,8 +39,10 @@ GPIO.output(pinEnable_Fert,GPIO.LOW)
 #LoadCell
 ADC.setup()
 pinLoadCell="P9_33"
-#GPS
-gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.5) # P9_11 P9_13
+#GPS configure and disable nmea
+gps = serial.Serial ("/dev/ttyS4", 9600,timeout=0.05) # P9_11 P9_13
+msg=["$PUBX,40,GLL,0,0,0,0*5C\r\n","$PUBX,40,VTG,0,0,0,0*5E\r\n","$PUBX,40,GSV,0,0,0,0*59\r\n","$PUBX,40,GGA,0,0,0,0*5A\r\n","$PUBX,40,GSA,0,0,0,0*4E\r\n"]
+for i in msg : gps.write(i.encode())
 #3G
 sim800l = serial.Serial("/dev/ttyS1", 9600,timeout=0.05) # P9_24 P9_26
 #
@@ -54,10 +56,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         #global variables declaration
         self.speed,self.popseed,self.fert_rt,self.fert_wgt,self.area,self.opcap,self.time_operation=0.0,'',0.0,0.0,0.0,0.0,0.0 #operation variables
         self.inst_opcap,self.inst_area,self.inst_time=0,0,0 #operation variables
-        self.time,self.date,self.nmea,self.lat_utm,self.long_utm,self.lat,self.long,self.pdop,self.status='','','',0,0,0,0.0,0,0 #gps variables
+        self.time,self.date,self.nmea,self.lat_utm,self.long_utm,self.lat,self.long,self.status='','','',0,0,0.0,0,0 #gps variables
         self.row_spacing,self.disk_hole,self.seed_germ,self.logfile_name=0,0,0,"" #operation variables
-        self.lat_map_fert,self.long_map_fert,self.map_fertrt=[],[],[] #map  fert
-        self.lat_map_seed,self.long_map_seed,self.pop_map_seed,=[],[],[] #map seed
+        self.map_fert,self.fert_values=0,0 #map  fert
+        self.map_seed,self.pop_values=0,0 #map seed
         self.seed_mode,self.fert_mode,self.fertbym,self.seedbym="OFF","OFF",0,0, #operation modes
         self.rot_seed,self.real_rot_seed=0.0,0.0 #seed speed
         self.wgt_voltage_cal=np.zeros(4) #calibrate load cell
@@ -73,10 +75,10 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.calc_m_fert,self.last_wgt=0,0 #calc the mass exit in log function period
         self.aux,self.error=0,0#to 3g function, log and gps
         #speed filter
-        self.array_s,self.array_w=[],[] #mean speed filter
         self.st_bt,self.last_st_bt=0,0
         self.real_mach_speed=0;
         self.last_vw,self.last_vs=0,0
+
         #timers configuration
         self.control_timer = QtCore.QTimer()
         self.log_timer = QtCore.QTimer()
@@ -88,11 +90,11 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ino_timer.timeout.connect(self.SpeedFunction)
         self.time_control=0.5 #in s
         self.control_timer.start(self.time_control*1000) #Start Control Function
-        self.log_timer.start(1000)
-        self.gps_timer.start(1000)
-        self.ino_timer.start(1000)
+        self.log_timer.start(2000)
+        self.gps_timer.start(2000)
+        self.ino_timer.start(500)
         #send char to arduino, to start send data
-        s='1'
+        s='500' #time between send data
         ino.write(s.encode())
         #GUI Buttons Configuration
         #Main
@@ -109,7 +111,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.Gpen,self.Gbrush=QtGui.QPen(QtCore.Qt.green),QtGui.QBrush(QtCore.Qt.green)
         self.Kpen,self.Kbrush=QtGui.QPen(QtCore.Qt.black),QtGui.QBrush(QtCore.Qt.black)
         self.pen_color=[self.Mpen,self.Ypen,self.Rpen,self.Bpen]
-        self.brush_color=[self.Mbrush,self.Ybrush,self.Rbrush,self.Gbrush]
+        self.brush_color=[self.Mbrush,self.Ybrush,self.Rbrush,self.Bbrush]
         #Setup Operation
         self.bt_load_seed.clicked.connect(self.LoadSeedFile) # load seed map
         self.bt_load_fert.clicked.connect(self.LoadFertFile) # load fert map
@@ -184,19 +186,19 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.ql_set_fert.setPlainText(str(self.fert_rt))
         self.ql_set_pop.setPlainText(str(self.popseed))
         # Reload the Fert and Seed Map, when map mode is active
-        if "MAP" in self.seed_mode: self.lat_map_seed,self.long_map_seed,self.pop_map_seed=self.LoadMap(self.seedfile_name)
-        if "MAP" in self.fert_mode:self.lat_map_fert,self.long_map_fert,self.map_fertrt=self.LoadMap(self.fertfile_name)
+        if "MAP" in self.seed_mode: self.map_seed,self.pop_values=self.LoadMap(self.seedfile_name)
+        if "MAP" in self.fert_mode: self.map_fert,self.fert_values=self.LoadMap(self.fertfile_name)
 ###
 #Functions
 # Im main Tab
 #   
     def Close(self): #save configuration inf file, clear GPIO, stop timer and close the software
         with open(self.conffile_name, "w",encoding='latin-1') as f:
-            f.write(self.seed_mode)+"\n")
+            f.write(self.seed_mode+"\n")
             f.write(self.seedfile_name+"\n")
             f.write(str(self.popseed)+"\n")
             f.write(str(self.seed_germ)+"\n")
-            f.write(self.fert_mode)+"\n")
+            f.write(self.fert_mode+"\n")
             f.write(self.fertfile_name+"\n")
             f.write(str(self.fert_rt)+"\n")
             f.write(str(self.row_spacing)+"\n")
@@ -224,49 +226,42 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
 #In Setup Operation
      # Setting the map file name
     def LoadSeedFile(self):
-        self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File",".","*.shp")[0]
-        self.lat_map_seed,self.long_map_seed,self.pop_map_seed=self..LoadMap(self.seedfile_name)
+        self.seedfile_name=QFileDialog.getOpenFileName(self,"Open Seed File","/root/SemeaPy5/Maps","*.shp")[0]
+        self.map_seed,self.pop_values=self.LoadMap(self.seedfile_name) #polygon map vertices and polygon atributes
         self.seed_mode="MAP" #automaticly set seed mode to MAP
     def LoadFertFile(self):
-        self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File",".","*.shp")[0]
-        self.lat_map_fert,self.long_map_fert,self.map_fertrt=self.LoadMap(self.fertfile_name)
+        self.fertfile_name=QFileDialog.getOpenFileName(self,"Open Fert File","/root/SemeaPy5/Maps","*.shp")[0]
+        self.map_fert,self.fert_values=self.LoadMap(self.fertfile_name)
         self.fert_mode="MAP" #automaticly set fert mode to MAP
     #
     #Load maps show in Graphics View
-    def LoadMap(self,filename): 
+    def LoadMap(self,filename):
+        self.scene.clear()
         polygon = shapefile.Reader(filename)
-        if (polygon.shapeType == shapefile.POLYGON): #check if shape is polygon type
+        atribute=[]
+        poly_map=[]
+        if (polygon.shapeType == shapefile.POLYGON): #if shape is polygon type
             n=len (polygon) #polygon numbers
             subpolygon = polygon.shapes()
             subpolygon_atribute = polygon.records() #contain do atributo em cada polygon
-            pixel=5 #pixel size to transfort polygon to raster
-            #vector to return the raster x,y and atribute
-            xgrid=[]
-            ygrid=[]
-            zvalue=[]
-            for i in range(n): #for each subpolygon in shape
-                subpolygon_points=subpolygon[i].points #points in each subpolgony
-                subpolygon_points=np.array(subpolygon_points) # to numpy
-                num=len(subpolygon_points) #points to form each subpolygon
-                atribute=subpolygon_atribute[i][2] #atribute contain in each subpolygon
-                nx=int((max(subpolygon_points[:,0])-min(subpolygon_points[:,0]))/pixel)+1
-                ny=int((max(subpolygon_points[:,1])-min(subpolygon_points[:,1]))/pixel)+1
-                for ii in range(nx):
-                    for jj in range(ny):
-                    x1=min(subpolygon_points[:,0])+(ii)*pixel
-                    y1=min(subpolygon_points[:,1])+(jj)*pixel
-                    if(operation.ray_tracing(x1,y1,subpolygon_points)==True): # if poit grid is inside contour
-                        xgrid.append(x1)
-                        ygrid.append(y1)
-                        zvalue.append(atribute)
-                        #plot in graphics view the map
-                        self.scene.addRect(x1,y1,1,1,self.pen_color[i],self.brush_color[i])
+            for i in range(n):
+                poly_map.append(subpolygon[i].points)
+                atribute.append(subpolygon_atribute[i][2]) #valor do atributo
+                #plot graphics view
+                sp_pt=np.array(subpolygon[i].points)
+                nn=len(sp_pt)
+                poly =  QtGui.QPolygonF()
+                for jj in range (nn):
+                    poly.append(QtCore.QPointF(sp_pt[jj,0],sp_pt[jj,1]))
+                self.scene.addPolygon(poly,self.pen_color[i],self.brush_color[i])
             self.gv.fitInView(self.scene.sceneRect(),QtCore.Qt.KeepAspectRatio)
-            return xgrid,ygrid,zvalue
+            del polygon, subpolygon,subpolygon_atribute,sp_pt,poly #clear memory
+            return poly_map,atribute
+            f.close()
         # if error in shapefile
         else :
             QMessageBox.information(self,'Load Map','No Polygon shapefile')
-            return 0,0,0
+            return 0,0
 
 #Increase and Decrease Values for the operation variables and show the actual value in QLine Edits
     def DecPop(self):
@@ -302,9 +297,13 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
     def OffPop(self):
         self.popseed=0
         self.seed_mode="OFF"
+        self.ql_set_pop.setPlainText("OFF")
+        self.scene.clear()
     def OffFert(self):
         self.fert_rt=0
         self.fert_mode="OFF"
+        self.ql_set_fert.setPlainText("OFF")
+        self.scene.clear()
         #   
     # Incread and Decrease Population and Fert Ratio for a Dynamic Test
     def IncPopFert(self):
@@ -334,9 +333,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.fieldID='F-'+str(self.n_field_id)
         self.logfile_name=os.path.join(self.dir,self.machineID+'_'+self.fieldID+'.txt')
         f=open(self.logfile_name,'w') #Creat the logfile with header
-        f.write("LogID,Date,Time (UTC),MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
-Mean Op Cap(ha/h),Instantanea OpCap(ha/h),Time Operation,Area(ha),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode,\
-Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
+        f.write("LogID,Date,Time (UTC),MachineID,FieldID,LatUTM(m),LongUTM(m),Lat(º),Long(º),Speed (m/s),GPS Status ,PopSeed(Plant/ha),FertRt(kg/ha),FertWgt(kg),\
+Mean Op Cap(m2/h),Time Operation (h),Area(m2),Row Spacing(m),Holes, seed_germ (%), SeedByM, FertByM, Seed Mode, Fert Mode,\
+Remote Status,Duty Seed, Calc Rot Seed, Real Rot Seed\n")
         f.close()
         #Reset area and time operation and clear configuration
         self.area=0.0
@@ -462,21 +461,21 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
 # Functions of the timers (timeouts)            
 #
     def GPSFunction(self): #GPS Function - Try until read GPRM NMEA Sentece
-        while ('$GPRMC' in self.nmea) is False : 
-            self.nmea=gps.readline()
-            try:self.nmea=self.nmea.decode('utf-8')
-            except:
-                self.nmea=gps.readline()
-                self.nmea=self.nmea.decode('utf-8')
+        t=time.time()
+        self.nmea=gps.readline()
+        self.nmea=self.nmea.decode('utf-8')
         self.date,self.time,self.lat_utm,self.long_utm,self.lat,self.long,self.status=operation.ReadGPS(self.nmea)
-        self.nmea=''
-        #Search Neigbhor for Map based aplication, and plot the map point used in graphics view
+
+        #Search Atribute for Map based aplication
         if "MAP" in self.seed_mode:
-            self.popseed,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_seed,self.long_map_seed,self.pop_map_seed)
-            self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
+                self.popseed=operation.FindNeig(self.lat_utm,self.long_utm,self.map_seed,self.pop_values)
         if "MAP" in self.fert_mode:
-            self.fert_rt,self.lat_used,self.long_used=operation.FindNeig(self.lat_utm,self.long_utm,self.lat_map_fert,self.long_map_fert,self.map_fertrt)
-            self.scene.addRect(self.lat_used,self.long_used,0.5,0.5,self.Kpen,self.Kbrush)
+                self.fert_rt=operation.FindNeig(self.lat_utm,self.long_utm,self.map_fert,self.fert_values)
+
+        self.lb_datetime.setText(str(round(time.time()-t,3)))
+
+ 
+        
 #    
     def LogFunction(self): # Function for generate a log file
         if GPIO.input(pinOnOffButton):
@@ -486,16 +485,12 @@ Remote Status,Calc Mass Fert Exit, Real Mass Fert Exit, Difference Mass\n")
             self.ql_logfile.setPlainText(string)
             data_string=str(self.log_id)+','+self.date+','+self.time+","+self.machineID+","+self.fieldID+","+str(self.lat_utm)+","+\
 str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+str(self.speed)+","+str(self.status)+","+ \
-str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.inst_opcap)+","+str(self.time_operation)+\
+str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.time_operation)+\
 ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)\
-+"," +str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st+","+str(self.dt_seed)+","+str(self.rot_seed)+","+str(self.real_rot_seed)+"," +\
-    str(self.calc_m_fert)+"," + str(self.last_wgt-self.fert_wgt)+ "\n"
++","+str(self.seed_mode)+","+str(self.fert_mode)+","+self.rm_st+","+str(self.dt_seed)+","+str(self.rot_seed)+","+str(self.real_rot_seed)+ "\n"
             f=open(self.logfile_name,'a')
             f.write(data_string)
             f.close()
-            #Fert Mass Exit Control
-            self.calc_m_fert=0 #reset
-            self.last_wgt=self.fert_wgt
         else:self.ql_logfile.setPlainText("Not saving")
 #
 # Read Speed from Arduino and process
@@ -508,18 +503,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
                 self.real_mach_speed=float(self.real_mach_speed)
                 self.real_rot_seed=float(self.real_rot_seed)
             except:pass
-            self.array_w=np.append(self.array_w,self.real_mach_speed)
-            self.array_s=np.append(self.array_s,self.real_rot_seed)
-            if len(self.array_w)>2:self.real_mach_speed=round(np.median(self.array_w),1)
-            if len(self.array_s)>2:self.real_rot_seed=round(np.median(self.array_s),1)
-            if len(self.array_w)>3:self.array_w=np.delete(self.array_w,0)
-            if len(self.array_s)>3:self.array_s=np.delete(self.array_s,0)
-            if len(self.array_w)>2 and self.array_w[-1]<0.4:
-                self.array_w=[]
-                self.real_mach_speed=0.0
-            if len(self.array_s)>2 and self.array_s[-1]<0.1:
-                self.array_s=[]
-                self.real_rot_seed=0.0
+            self.real_mach_speed= round(self.real_mach_speed,1)
 ###
 ###
 # Function that control the seed and fert application motor            
@@ -571,18 +555,15 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if self.cb_speed_fert.isChecked() is False:
                 self.fertbym,self.fertbys=operation.Fert(self.speed,self.fert_rt,self.row_spacing)
                 self.dt_fert=operation.ControlSpeedFert(self.cal_a_fert,self.cal_b_fert,self.fertbys)
-            #cal mass distribution (in log periodo)
-            self.calc_m_fert=self.calc_m_fert+self.fertbys*self.time_operation #in kg => reset in LogFunction
-
+  
             #calculate operational capability and area 
             #
-            self.inst_area=self.row_spacing*self.speed*self.time_control #in ha
-            self.area=round(self.area+self.inst_area/10000,2) #in h2
+            self.inst_area=self.row_spacing*self.speed*self.time_control #in m2
+            self.area=round(self.area+self.inst_area,2) #in m2
             self.inst_time=round(self.time_control/3600.0,5) #in h
             self.time_operation=round(self.time_operation+self.inst_time,5)   # in h
-            self.opcap=round(self.area/(self.time_operation),3) # in ha/h
-            self.inst_opcap=round(self.inst_area/self.inst_time,3)
-
+            self.opcap=round(self.area/(self.time_operation),2) # in m2/h
+     
             # Update LineEdit in main tab
             self.ql_speed.setPlainText(str(self.speed))
             self.ql_seed.setPlainText(str(self.popseed))
@@ -591,17 +572,18 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.ql_fert_rt.setPlainText(str(self.fert_rt))
             self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
             self.ql_area.setPlainText(str(self.area))
-            self.ql_opcap.setPlainText(str(self.time_operation))
-            self.lb_status.setText('CALC'+str(self.rot_seed)+' REAL:'+str(self.real_rot_seed)+'Dt:'+str(self.dt_seed))
-            if not "OFF" in self.seed_mode and self.dt_seed<40.0: self.lb_status.setText("Low speed in Seed Motor")
+            self.ql_opcap.setPlainText(str(self.time_operation)) #it's time operation
+            if not "OFF" in self.seed_mode:self.lb_status.setText('C'+str(self.rot_seed)+' R:'+str(self.real_rot_seed)+'DT:'+str(self.dt_seed))
+            elif not "OFF" in self.seed_mode and self.dt_seed<40.0: self.lb_status.setText("Low speed in Seed Motor")
+            else : self.lb_status.setText("OFF")
             if not "OFF" in self.fert_mode and self.dt_fert<40.0: self.lb_status.setText("Low speed in Fert Motor")
-            self.lb_datetime.setText(self.time)
+            #self.lb_datetime.setText(self.time)
 
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.real_rot_seed))
             # 3G Send Datas
-            dt=2/time_control #  5*dt/time_control must  10 s
-             if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
+            dt=int(2/self.time_control) #  5*dt/time_control must  10 s
+            if self.aux==dt and  self.cb_remote.isChecked():sim800l.write(str.encode('AT+SAPBR=3,1,\"Contype\",\"GPRS\"'+'\r'))
             if self.aux==2*dt and  self.cb_remote.isChecked():
                 sim800l.write(str.encode('AT+SAPBR=3,1,\"APN\",\"zap.vivo.com.br\"'+'\r'))
                 self.ql_remote_status.setPlainText("Starting..")
@@ -609,12 +591,14 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if self.aux==4*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+SAPBR=2,1'+'\r'))
             if self.aux==5*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPINIT'+'\r'))
             if self.aux==6*dt and  self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"CID\",1'+'\r'))
+            if self.aux==7*dt:self.tttt=time.time()
             link='http://andrecoelho.tech/SemeaView/send_mysql.php?'
             str_data='LogID='+str(self.log_id)+'&Date='+str(self.date)+'&Time='+str(self.time)+'&MachineID='+self.machineID\
 +'&FieldID='+self.fieldID+'&Lati='+str(self.lat)+'&Longi='+str(self.long)+'&XUtm='+str(self.lat_utm)+'&YUtm='+str(self.long_utm)+'&Speed='+\
 str(self.speed)+'&OpCap='+str(self.opcap)+'&TimeOperation='+str(self.time_operation)+'&Population='+str(self.popseed)+'&FertRatio='+\
 str(self.fert_rt)+'&FertWgt='+str(self.fert_wgt)+'&Area='+str(self.area)
-            if self.aux==9*dt and self.cb_remote.isChecked(): sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+str_data+'\r'))
+            if self.aux==9*dt and self.cb_remote.isChecked():
+                sim800l.write(str.encode('AT+HTTPPARA=\"URL\",'+link+str_data+'\r'))
             if self.aux==12*dt and self.cb_remote.isChecked():
                 sim800l.write(str.encode('AT+HTTPACTION=0'+'\r'))
                 self.aux=7*dt
