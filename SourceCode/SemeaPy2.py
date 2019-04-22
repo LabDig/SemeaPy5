@@ -102,6 +102,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.long_fix=0
         self.array2,self.filter_mach=[],0
         
+        
         #Open the software with configuration of last use
         self.dir=os.path.dirname(os.path.abspath(__file__))  
         self.conffile_name=os.path.join(self.dir,"conf.txt")
@@ -130,6 +131,9 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             self.log_id=int(f.readline())
             self.time_control=int(f.readline())
             self.time_gps=int(f.readline())
+            self.aux_bt=int(f.readline())
+            self.aux_gps=int(f.readline())
+            
         f.close()
         #Setup the operation, with configuration of last use
         self.seed_mode=self.seed_mode.rstrip()
@@ -163,7 +167,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
         self.gps_timer.timeout.connect(self.GPSFunction)
         self.ino_timer.timeout.connect(self.SpeedFunction)
         self.control_timer.start(self.time_control) #Start Control Function
-        self.log_timer.start(1000)
+        self.log_timer.start(250)
         self.gps_timer.start(self.time_gps)
         self.ino_timer.start(self.time_control)
         #GUI Buttons Configuration
@@ -246,6 +250,8 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             f.write(str(self.log_id)+"\n")
             f.write(str(self.time_control)+"\n")
             f.write(str(self.time_gps)+"\n")
+            f.write(str(self.aux_bt)+"\n")
+            f.write(str(self.aux_gps)+"\n")
         f.close()
         GPIO.cleanup()
         PWM.cleanup()
@@ -280,6 +286,7 @@ class Semea(QtWidgets.QTabWidget,Ui_SEMEA):
             for i in range(n):
                 poly_map.append(subpolygon[i].points)
                 atribute.append(subpolygon_atribute[i][1]) #valor do atributo
+
                 #plot graphics view
                 sp_pt=np.array(subpolygon[i].points)
                 nn=len(sp_pt)
@@ -398,10 +405,15 @@ Remote Status,Duty Seed, Calc Rot Seed, Real Rot Seed\n")
         f.close()
         #Reset area and time operation and clear configuration
         self.area=0.0
+        self.aux_bt=0
+        self.aux_gps=0
         self.time_operation=0.0
         self.fertfile_name=""
         self.seedfile_name=""
         self.log_id=0
+        self.seed_mode="OFF"
+        self.fert_mode="OFF"
+        
         self.scene.clear()
     #calibrate the Load Cell of Fert Tank
     def SaveCal(self): #Save the point for calibration.
@@ -480,27 +492,37 @@ Remote Status,Duty Seed, Calc Rot Seed, Real Rot Seed\n")
     def GPSFunction(self):
         nmea1=gps.readline()
         nmea2=gps.readline()
-        try:
-            nmea1=nmea1.decode('utf-8')
-            nmea1=nmea1.split(',')
-            nmea2=nmea2.decode('utf-8')
-            nmea2=nmea2.split(',')
-            self.date,self.time,self.lat_utm,self.long_utm,self.lat,self.long,self.status,self.pdop=operation.ReadGPS(nmea1,nmea2)
-        except:
-            self.ql_pdop.setPlainText("Error")
-      
-        if "MAP" in self.seed_mode:
-                self.popseed=operation.FindNeig(self.lat_utm,self.long_utm,self.map_seed,self.pop_values)
-        if "MAP" in self.fert_mode:
-                self.fert_rt=operation.FindNeig(self.lat_utm,self.long_utm,self.map_fert,self.fert_values)
+        if GPIO.input(pinOnOffButton):
+            try:
+                self.aux_gps=self.aux_gps+1
+                nmea1=nmea1.decode('utf-8')
+                nmea1=nmea1.split(',')
+                nmea2=nmea2.decode('utf-8')
+                nmea2=nmea2.split(',')
+                self.date,self.time,self.lat_utm,self.long_utm,self.lat,self.long,self.status,self.pdop=operation.ReadGPS(nmea1,nmea2)
+            except:
+                self.ql_pdop.setPlainText("Error")
+          
+            if "MAP" in self.seed_mode:
+                    self.popseed=operation.FindNeig(self.lat_utm,self.long_utm,self.map_seed,self.pop_values)
+            if "MAP" in self.fert_mode:
+                    self.fert_rt=operation.FindNeig(self.lat_utm,self.long_utm,self.map_fert,self.fert_values)
 #    
     def LogFunction(self): # Function for generate a log file
         if GPIO.input(pinOnOffButton) and self.lat_utm >0:
+
+            #Button For Dyanmics Teste
+            self.st_bt=GPIO.input(pinUpDyn)
+            if self.st_bt==1 and  self.last_st_bt==0:
+                self.aux_bt=self.aux_bt+1
+            self.last_st_bt=self.st_bt
+
+            
             self.log_id=self.log_id+1
             #Local Logger
             string="Saving in: "+str(self.logfile_name)
             self.ql_logfile.setPlainText(string)
-            data_string=str(self.log_id)+','+self.date+','+self.time+","+self.machineID+","+self.fieldID+","+str(self.lat_utm)+","+\
+            data_string=str(self.aux_gps)+','+str(self.aux_bt)+','+str(self.log_id)+','+self.date+','+self.time+","+self.machineID+","+self.fieldID+","+str(self.lat_utm)+","+\
 str(self.long_utm)+","+str(self.lat)+","+str(self.long)+","+str(self.mach_speed)+","+str(self.pdop)+","+ \
 str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opcap)+","+str(self.time_operation)+\
 ","+str(self.area)+","+str(self.row_spacing)+","+str(self.disk_hole)+","+str(self.seed_germ)+","+str(self.seedbym)+","+str(self.fertbym)\
@@ -548,11 +570,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
     def ControlFunction(self):
         #
         if GPIO.input(pinOnOffButton):
-            #Button For Dyanmics Teste
-            self.st_bt=GPIO.input(pinUpDyn)
-            if self.st_bt==1 and  self.last_st_bt==0:
-                self.IncPopFert()
-            self.last_st_bt=self.st_bt
+            
             #
             if self.status=='A': #plot in graph the actual position
                 self.scene.addRect(self.lat_utm,self.long_utm,0.5,0.5,self.Gpen,self.Gbrush)
@@ -573,7 +591,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             if self.dt_seed_cal < 10: #if test function is not active
                 self.rot_seed,self.seedbym=operation.Seeder(self.mach_speed,self.popseed,self.row_spacing,self.disk_hole,self.seed_germ)
                 self.dt_seed=operation.ControlSpeedSeed(self.change_popseed,self.rot_seed,self.filter_rot_seed,self.cal_a_seed,self.cal_b_seed)
-
+            '''
             #check if motor is blocked
             if (self.dt_seed > 35 or self.dt_seed_cal > 35) and self.filter_rot_seed < 0.1 :
                 self.aux_block=self.aux_block+1
@@ -585,6 +603,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
                 PWM.set_duty_cycle(pinPWM_Seed,self.dt_seed)
                 self.aux_block=0
             if self.change_popseed is True:self.aux_block=0
+            '''
             ##
             ####Fertilizer Distribution###
             #check if fertilizer ratio change ==> for use in dynamic calibration (future development)
@@ -609,8 +628,8 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.ql_seed.setPlainText(str(self.popseed))
             if self.status=='A':self.ql_pdop.setPlainText(str(self.pdop))
             else:self.ql_pdop.setPlainText('No Signal')
-            self.ql_fert_rt.setPlainText(str(self.fert_rt))
-            self.ql_fert_wgt.setPlainText(str(self.fert_wgt))
+            self.ql_fert_rt.setPlainText(str(self.aux_gps))
+            self.ql_fert_wgt.setPlainText(str(self.aux_bt))
             self.ql_area.setPlainText(str(self.area))
             self.ql_opcap.setPlainText(str(self.time_operation)) #it's time operation
             if not "OFF" in self.seed_mode:self.lb_status.setText('C'+str(self.rot_seed)+' R:'+str(self.filter_rot_seed)+'DT:'+str(self.dt_seed))
@@ -620,6 +639,7 @@ str(self.popseed)+","+str(self.fert_rt)+","+str(self.fert_wgt)+","+str(self.opca
             self.lb_datetime.setText(self.time)
             #in Calibrate
             self.ql_speed_cal.setPlainText(str(self.filter_rot_seed))
+
             # 3G Send Data
             dt=int(2000/self.time_control) #  5*dt/time_control must  10 s
             if self.aux==dt and  "ON" in self.st_remote:

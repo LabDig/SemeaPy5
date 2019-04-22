@@ -22,7 +22,7 @@ def Fert(v,rate,spacing):
 #Calc Seed Ratio. Work only for spped >0.5 m/s
 def Seeder(v,pop,row,holes,germ):
     seeds=pop*row/(10000*germ/100)
-    if v>0.5 : return round(3.3*seeds*v/holes,2),round(seeds,1)
+    if v>0.3 : return round(3.3*seeds*v/holes,2),round(seeds,1)
     else : return 0.0,round(seeds,1)
 
 #Check if a point it is inside or outside to polygon
@@ -60,13 +60,19 @@ def FindNeig(x_atual,y_atual,poly_map,values):
 
 # Split the gprm nmea sente
 
-def ReadGPS(nmea):
-    nmea_array=nmea.split(',')
-    size=len(nmea_array)
-    status=nmea_array[2]  # check status
-    if status=='A' and size==13:
+def ReadGPS(nmea1,nmea2):
+    if '$GPGSA' in nmea1[0]: pdop=float(nmea1[-3])
+    if '$GPGSA' in nmea2[0]: pdop=float(nmea2[-3])
+    if '$GPRMC' in nmea1[0]: date,ttime,lat_utm,long_utm,lat,long,status=SplitNMEA(nmea1)
+    if '$GPRMC' in nmea2[0]: date,ttime,lat_utm,long_utm,lat,long,status=SplitNMEA(nmea2)
+    return date,ttime,lat_utm,long_utm,lat,long,status,pdop
+
+def SplitNMEA(nmea_array):
+        size=len(nmea_array)
+        status=nmea_array[2]  # check status
+        if status=='A' and size==13:
             date=nmea_array[9][0]+nmea_array[9][1]+'/'+nmea_array[9][2]+nmea_array[9][3]+'/'+nmea_array[9][4]+nmea_array[9][5]
-            time=nmea_array[1][0]+nmea_array[1][1]+':'+nmea_array[1][2]+nmea_array[1][3]+':'+nmea_array[1][4]+nmea_array[1][5]
+            ttime=nmea_array[1][0]+nmea_array[1][1]+':'+nmea_array[1][2]+nmea_array[1][3]+':'+nmea_array[1][4]+nmea_array[1][5]
             latMin=float(nmea_array[3][2:])/60   
             lat=((float(nmea_array[3][0:2])+latMin)) 
             lonMin=float(nmea_array[5][3:])/60   
@@ -78,9 +84,8 @@ def ReadGPS(nmea):
             utm_conv=utm.from_latlon(lat,long)
             lat_utm=float(utm_conv[0])
             long_utm=float(utm_conv[1])
-    if status=='V':
-            lat,long,lat_utm,long_utm,date,time=0,0,0,0,'',''
-    return date,time,lat_utm,long_utm,lat,long,status
+        if status=='V':  lat,long,lat_utm,long_utm,date,ttime=0,0,0,0,'',''
+        return date,ttime,lat_utm,long_utm,lat,long,status
 
 
 # Read the weigth of fert tank

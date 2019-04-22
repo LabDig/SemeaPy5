@@ -22,10 +22,11 @@ void setup() {
 }
 
 void loop() {
-
-  if (Serial.available()) {
-    t_c = Serial.parseInt();
+  
+  if (Serial.available()){
+    t_c=Serial.parseInt();
   }
+  
   st_w = digitalRead(pin_w);
   st_s = digitalRead(pin_s);
 
@@ -43,8 +44,12 @@ void loop() {
 
  
       vw=2.0*(pulse_w/160.0)/(t_c/1000.0);
-      vs=(pulse_s/8.0)/(t_c/1000.0);
+      vs=(pulse_s/160.)/(t_c/1000.0);
+      Serial.print('@');
+      Serial.print(',');
       Serial.print(vw);
+      Serial.print(',');
+      Serial.print(vs);
       Serial.print(',');
       Serial.println(t_c);
       pulse_s=0;
