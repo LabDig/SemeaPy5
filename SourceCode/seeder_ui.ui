@@ -26,7 +26,7 @@
    <enum>QTabWidget::North</enum>
   </property>
   <property name="currentIndex">
-   <number>0</number>
+   <number>1</number>
   </property>
   <widget class="QWidget" name="main">
    <attribute name="title">
@@ -111,7 +111,7 @@
          </property>
          <property name="font">
           <font>
-           <pointsize>10</pointsize>
+           <pointsize>12</pointsize>
           </font>
          </property>
          <property name="plainText">
@@ -177,9 +177,46 @@
            <height>30</height>
           </size>
          </property>
+         <property name="palette">
+          <palette>
+           <active>
+            <colorrole role="WindowText">
+             <brush brushstyle="SolidPattern">
+              <color alpha="255">
+               <red>170</red>
+               <green>0</green>
+               <blue>0</blue>
+              </color>
+             </brush>
+            </colorrole>
+           </active>
+           <inactive>
+            <colorrole role="WindowText">
+             <brush brushstyle="SolidPattern">
+              <color alpha="255">
+               <red>170</red>
+               <green>0</green>
+               <blue>0</blue>
+              </color>
+             </brush>
+            </colorrole>
+           </inactive>
+           <disabled>
+            <colorrole role="WindowText">
+             <brush brushstyle="SolidPattern">
+              <color alpha="255">
+               <red>106</red>
+               <green>104</green>
+               <blue>100</blue>
+              </color>
+             </brush>
+            </colorrole>
+           </disabled>
+          </palette>
+         </property>
          <property name="font">
           <font>
-           <pointsize>10</pointsize>
+           <pointsize>12</pointsize>
           </font>
          </property>
          <property name="plainText">
@@ -479,6 +516,88 @@
      <enum>QFrame::Raised</enum>
     </property>
    </widget>
+   <widget class="QLabel" name="lb_tb">
+    <property name="geometry">
+     <rect>
+      <x>290</x>
+      <y>310</y>
+      <width>201</width>
+      <height>36</height>
+     </rect>
+    </property>
+    <property name="palette">
+     <palette>
+      <active>
+       <colorrole role="WindowText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>170</red>
+          <green>0</green>
+          <blue>0</blue>
+         </color>
+        </brush>
+       </colorrole>
+       <colorrole role="Text">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>170</red>
+          <green>0</green>
+          <blue>0</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </active>
+      <inactive>
+       <colorrole role="WindowText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>170</red>
+          <green>0</green>
+          <blue>0</blue>
+         </color>
+        </brush>
+       </colorrole>
+       <colorrole role="Text">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>170</red>
+          <green>0</green>
+          <blue>0</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </inactive>
+      <disabled>
+       <colorrole role="WindowText">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>106</red>
+          <green>104</green>
+          <blue>100</blue>
+         </color>
+        </brush>
+       </colorrole>
+       <colorrole role="Text">
+        <brush brushstyle="SolidPattern">
+         <color alpha="255">
+          <red>106</red>
+          <green>104</green>
+          <blue>100</blue>
+         </color>
+        </brush>
+       </colorrole>
+      </disabled>
+     </palette>
+    </property>
+    <property name="font">
+     <font>
+      <pointsize>20</pointsize>
+     </font>
+    </property>
+    <property name="text">
+     <string>000</string>
+    </property>
+   </widget>
    <zorder>frame_10</zorder>
    <zorder>frame_9</zorder>
    <zorder>exit</zorder>
@@ -488,6 +607,7 @@
    <zorder>layoutWidget_2</zorder>
    <zorder>lb_status</zorder>
    <zorder>lb_datetime</zorder>
+   <zorder>lb_tb</zorder>
   </widget>
   <widget class="QWidget" name="config">
    <attribute name="title">
@@ -573,19 +693,6 @@
      </size>
     </property>
    </widget>
-   <widget class="QGroupBox" name="groupBox_4">
-    <property name="geometry">
-     <rect>
-      <x>630</x>
-      <y>154</y>
-      <width>161</width>
-      <height>231</height>
-     </rect>
-    </property>
-    <property name="title">
-     <string/>
-    </property>
-   </widget>
    <widget class="QGroupBox" name="groupBox_3">
     <property name="geometry">
      <rect>
@@ -625,7 +732,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_mach_id_2">
+           <widget class="ClickableLineEdit" name="le_set_mach_id">
             <property name="minimumSize">
              <size>
               <width>150</width>
@@ -657,7 +764,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_fil_id_2">
+           <widget class="ClickableLineEdit" name="le_set_fil_id">
             <property name="minimumSize">
              <size>
               <width>150</width>
@@ -675,7 +782,7 @@
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="bt_st_id_2">
+         <widget class="QPushButton" name="bt_st_id">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -717,7 +824,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPlainTextEdit" name="ql_logfile_2">
+         <widget class="QPlainTextEdit" name="ql_logfile">
           <property name="minimumSize">
            <size>
             <width>440</width>
@@ -764,7 +871,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="bt_remote_2">
+         <widget class="QPushButton" name="bt_remote">
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -783,7 +890,7 @@
          </widget>
         </item>
         <item>
-         <widget class="QPlainTextEdit" name="ql_remote_status_2">
+         <widget class="QPlainTextEdit" name="ql_remote_status">
           <property name="minimumSize">
            <size>
             <width>200</width>
@@ -940,7 +1047,7 @@
     <property name="title">
      <string>SEEDER</string>
     </property>
-    <widget class="QWidget" name="">
+    <widget class="QWidget" name="layoutWidget">
      <property name="geometry">
       <rect>
        <x>12</x>
@@ -1175,12 +1282,6 @@
      </layout>
     </widget>
    </widget>
-   <zorder>groupBox_4</zorder>
-   <zorder>bt_back_main</zorder>
-   <zorder>bt_to_conf_2</zorder>
-   <zorder>groupBox_3</zorder>
-   <zorder>groupBox_2</zorder>
-   <zorder>groupBox</zorder>
   </widget>
   <widget class="QWidget" name="aux">
    <attribute name="title">
@@ -1407,7 +1508,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_t_ctrl_2">
+           <widget class="ClickableLineEdit" name="le_set_t_ctrl">
             <property name="minimumSize">
              <size>
               <width>120</width>
@@ -1439,7 +1540,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_t_gps_2">
+           <widget class="ClickableLineEdit" name="le_set_t_gps">
             <property name="minimumSize">
              <size>
               <width>120</width>
@@ -1475,7 +1576,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_latitude_2">
+           <widget class="ClickableLineEdit" name="le_set_latitude">
             <property name="minimumSize">
              <size>
               <width>120</width>
@@ -1507,7 +1608,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ClickableLineEdit" name="le_set_longitude_2">
+           <widget class="ClickableLineEdit" name="le_set_longitude">
             <property name="minimumSize">
              <size>
               <width>120</width>
