@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'keyboard.ui'
+# Build the Virtual Numeric KeyBoard, 
+# containing 0 to 9 numeric button
+# dot (.) button
+# clear button
+# Enter (OK) button
+# Display Number
+# The Keyboard GUI it was designed using Qt Designer
+# And converted for Python File using pyuic5 command of PyQt5 Tools
 #
-# Created by: PyQt5 UI code generator 5.9.2
-#
-# WARNING! All changes made in this file will be lost!
-
 from PyQt5 import QtCore, QtGui, QtWidgets
-
+#
 class Ui_KeyBoard(object):
     def setupUi(self, KeyBoard):
         KeyBoard.setObjectName("KeyBoard")
@@ -266,8 +269,6 @@ class Ui_KeyBoard(object):
         self.actionExit.setShortcut(_translate("KeyBoard", "Ctrl+Q"))
         self.actionReset.setText(_translate("KeyBoard", "Reset"))
         self.actionReset.setShortcut(_translate("KeyBoard", "Ctrl+R"))
-
-
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)

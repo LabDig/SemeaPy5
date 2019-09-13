@@ -1,5 +1,5 @@
 OFF
-/root/SemeaPy/Maps/semeadura_aero_4070.shp
+/root/SemeaPy/Maps/sowing_map.shp
 0.0
 90
 OFF

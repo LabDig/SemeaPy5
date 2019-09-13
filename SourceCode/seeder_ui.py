@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-
-# Form implementation generated from reading ui file 'seeder_ui.ui'
 #
-# Created: Tue Apr 23 00:04:25 2019
-#      by: PyQt5 UI code generator 5.3.2
+# Build the GUI of software to Controller developed, 
+# Contain MAIN, Operation and Calibration Tabs
+# The GUI contains the functions to fertilizer spreader controller and a remote monitoring system, that is being developed 
+# Also containing functions to Laboratory Test, such is calibration of angular velocity of electric motor
+# The GUI it was designed using Qt Designer
+# And converted for Python File using pyuic5 command of PyQt5 Tools
 #
-# WARNING! All changes made in this file will be lost!
-
 from PyQt5 import QtCore, QtGui, QtWidgets
 import os
-
+#
 class Ui_SEMEA(object):
     def setupUi(self, SEMEA):
         SEMEA.setObjectName("SEMEA")

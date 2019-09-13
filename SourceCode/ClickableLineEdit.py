@@ -1,8 +1,8 @@
-# Add a clicked function in LineEdit
+# Add a clicked function (Mouse Press Event) to LineEdit
+# It was used to build a Virtual Numeric Keyboard to GUI.
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QLineEdit
-
-
+#
 class ClickableLineEdit(QLineEdit):
     clicked = pyqtSignal()
     def mousePressEvent(self, event):
