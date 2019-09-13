@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Calibrate
+comment=Calibrate
+Exec=arduino
+Type=Application
+Icon=
+Categories=Acessories
+Terminal=true
+Name[pt_BR]=Calibrate
+

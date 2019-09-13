@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Semeadora
+comment=Application
+Exec=python3 /root/SemeaPy5/SourceCode/SemeaPy2.py
+Type=Application
+Icon=/root/SemeaPy5/SourceCode/icon.png
+Categories=Acessories
+Terminal=false
