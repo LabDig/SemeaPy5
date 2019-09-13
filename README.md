@@ -1,4 +1,3 @@
-#SemeaPy5
 ******************************
 Open source software developed by seed variable rate application controller.
 Developed in Python 3.6 language, and using PyQt5 tools to build the Graphical User Interface(GUI)
