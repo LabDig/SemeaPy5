@@ -2,6 +2,17 @@
 Open source software developed by seed variable rate application controller.
 Developed in Python 3.6 language, and using PyQt5 tools to build the Graphical User Interface(GUI)
 ******************************
+Authors of software
+
+M.Sc Andre Luiz de Freitas Coelho (Federal University of Vicosa).Email:andre.coelho@ufv.br
+
+PhD Daniel Marcal de Queiroz (Federal University of Vicosa). Email:queiroz@ufv.br
+
+PhD Francisco de Assis de Carvalho Pinto (Federal University of Vicosa).
+
+D. Sc Domingos Sarvio Magalhes Valente (Federal University of Vicosa).
+
+******************************
 The controller was developed using the BeableBone Black single board computer
 The Adafruit BBIO module was used to control GPIO and PWM pin
 A Arduino Pro Mini 3.3 V 8 Mhz was used to calculate planter speed and angular velocity of electric motor
